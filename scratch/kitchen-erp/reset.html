@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Reset Produtos — ChefERP</title>
+<style>
+  body { font-family: sans-serif; background: #0d1117; color: #e6edf3; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 40px; max-width: 480px; width: 100%; text-align: center; }
+  h2 { color: #10b981; margin-top: 0; }
+  ul { text-align: left; background: #0d1117; border-radius: 8px; padding: 16px 24px; font-size: .95rem; line-height: 2; }
+  .btn { background: linear-gradient(135deg, #10b981, #059669); color: #000; border: none; border-radius: 10px; padding: 16px 40px; font-size: 1.1rem; font-weight: 700; cursor: pointer; width: 100%; margin-top: 20px; }
+  .btn:hover { opacity: .9; }
+  .warn { color: #f59e0b; font-size: .85rem; margin-top: 12px; }
+  #status { margin-top: 16px; font-weight: 600; display: none; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h2>🔄 Reset de Produtos</h2>
+  <p>Isso vai <strong>apagar todos os produtos</strong> atuais e cadastrar apenas os 4 abaixo:</p>
+  <ul>
+    <li>🍗 Sassami de Frango</li>
+    <li>🥩 Carne Moída</li>
+    <li>🥩 Acém em Cubos</li>
+    <li>🥩 Filé Mignon</li>
+  </ul>
+  <p class="warn">⚠️ Movimentações, lotes e fichas técnicas também serão limpos.</p>
+  <button class="btn" onclick="resetar()">✅ Confirmar e Resetar</button>
+  <div id="status"></div>
+</div>
+
+<script>
+function resetar() {
+  // Limpar tudo
+  ['chef_produtos','chef_movimentacoes','chef_lotes','chef_producoes','chef_fichas'].forEach(function(k) {
+    localStorage.removeItem(k);
+  });
+
+  var agora = Date.now();
+  var produtos = [
+    { id: String(agora + 1), nome: 'Sassami de Frango', categoria: 'Carnes', codigoInterno: 'SAS001', codigoBarras: '', formaEntrega: '', temperatura: 'Resfriado', unidade: 'kg', local: 'Câmara Fria', estoque: 0, estoqueMinimo: 0, estoqueMaximo: 0, custo: 0, fornecedor: '', observacoes: '', criadoEm: new Date().toISOString() },
+    { id: String(agora + 2), nome: 'Carne Moída',       categoria: 'Carnes', codigoInterno: 'CMO002', codigoBarras: '', formaEntrega: '', temperatura: 'Resfriado', unidade: 'kg', local: 'Câmara Fria', estoque: 0, estoqueMinimo: 0, estoqueMaximo: 0, custo: 0, fornecedor: '', observacoes: '', criadoEm: new Date().toISOString() },
+    { id: String(agora + 3), nome: 'Acém em Cubos',     categoria: 'Carnes', codigoInterno: 'ACE003', codigoBarras: '', formaEntrega: '', temperatura: 'Resfriado', unidade: 'kg', local: 'Câmara Fria', estoque: 0, estoqueMinimo: 0, estoqueMaximo: 0, custo: 0, fornecedor: '', observacoes: '', criadoEm: new Date().toISOString() },
+    { id: String(agora + 4), nome: 'Filé Mignon',       categoria: 'Carnes', codigoInterno: 'FMI004', codigoBarras: '', formaEntrega: '', temperatura: 'Resfriado', unidade: 'kg', local: 'Câmara Fria', estoque: 0, estoqueMinimo: 0, estoqueMaximo: 0, custo: 0, fornecedor: '', observacoes: '', criadoEm: new Date().toISOString() }
+  ];
+
+  localStorage.setItem('chef_produtos', JSON.stringify(produtos));
+
+  var el = document.getElementById('status');
+  el.style.display = 'block';
+  el.style.color = '#10b981';
+  el.innerHTML = '✅ 4 produtos cadastrados! Redirecionando...';
+
+  setTimeout(function() {
+    window.location.href = 'cheferp.html#produtos';
+  }, 1500);
+}
+</script>
+</body>
+</html>

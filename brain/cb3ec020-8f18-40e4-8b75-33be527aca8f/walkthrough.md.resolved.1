@@ -1,0 +1,23 @@
+# Resumo de Entrega: Reposição Inteligente (Par-Level)
+
+O Controle Cozinha Central agora trabalha com um modelo mais inteligente: os gerentes não "pedem" mais itens. Eles informam quanto a loja tem, e o sistema faz as contas!
+
+## O Que Foi Atualizado
+
+### 1. Novo Painel de "Configuração de Metas"
+Na aba "Pedidos", no topo à direita, você verá um novo botão **⚙️ Configurar Estoque Máximo Lojas**.
+- Ali você pode registrar, por exemplo: *"Valparaíso tem como meta máxima 10 fardos de Caixas e 15 kg de Pepperoni"*.
+
+### 2. Romaneio & Separação Matemáticos!
+Isso modifica todo o fluxo que construímos:
+- Quando Valparaíso enviar a lista avisando que eles têm 2 Pepperonis.
+- O seu Robô Matemático vai calcular: `15 (Meta Máxima) - 2 (Estoque Atual) = Enviar 13 Pepperonis`.
+- Ao imprimir o *Romaneio*, o sistema mostrará na lista apenas **13**.
+- Ao usar o *Scanner* de código de barras, a barrinha vai até **13**!
+- Todos os itens em que a loja informar ter alcançado o "teto" serão eliminados e nem aparecerão no processo de separação ou papel.
+
+### 3. Ajuste do Formulário das Lojas
+Os links das lojas foram mudados: os textos que antes perguntavam *"O que a loja está precisando?"*, hoje perguntam em caixa alta: **"Preencha as quantidades ATUAIS que você tem na loja"**.
+
+## O Pulo do Gato Logístico 🐱
+Trabalhar dessa forma com reposição baseada em teto elimina as *"apostas"* da equipe da loja (e.g. *Acho que vai faltar x, então vou pedir o dobro*). Todo o esforço de prever demanda passa as ser gerido por você, na mesa central!

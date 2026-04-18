@@ -1,0 +1,30 @@
+🍳
+ChefERP
+Cozinha Industrial
+[0] (135,53)<button class='sidebar-toggle' id='sidebarToggle' title='Fechar menu' />
+[1] (78,150)<a class='nav-item' href='#' />
+	[2] (54,150)<span >Dashboard />
+Cadastros
+[3] (78,251)<a class='nav-item active' href='#' />
+	[4] (50,251)<span >Produtos />
+[5] (78,306)<a class='nav-item' href='#' />
+	[6] (64,306)<span >Fichas Técnicas />
+Movimentação
+[7] (78,407)<a class='nav-item' href='#' />
+	[8] (47,407)<span >Entrada />
+[9] (78,462)<a class='nav-item' href='#' />
+	[10] (51,462)<span >Produção />
+[11] (78,517)<a class='nav-item' href='#' />
+	[12] (65,517)<span >Armazenamento />
+[13] (78,572)<a class='nav-item' href='#' />
+	[14] (43,572)<span >Saída />
+Análise
+[15] (78,673)<a class='nav-item' href='#' />
+	[16] (52,673)<span >Relatórios />
+CZ
+Cozinha Industrial
+Administrador
+📦 Produtos
+qua., 15/04/26, 22:55
+[17] (972,43)<button class='btn-icon' id='notifBtn' title='Notificações' />
+	[18] (977,32)<span  />

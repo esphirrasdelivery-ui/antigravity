@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ERP para Lojas — Etiquetagem" />
+  <title>Sistema de Loja — Esphirra's Delivery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Overlay para fechar sidebar mobile -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar no-print" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-box" style="background-color: var(--accent); padding: 5px; border-radius: 5px; display:inline-block;">
+        <img src="LOGO_BASE64_PLACEHOLDER" alt="Esphirra's Delivery Logo" class="logo-img" style="max-height: 40px; margin: 0 auto; display: block;" onerror="this.style.display='none'" />
+      </div>
+      <div>
+        <h1 class="logo-title" style="color:var(--text-primary); font-size:1.1rem; line-height:1.2; text-transform:uppercase; letter-spacing:0.5px">Controle<br><span style="color:var(--accent); font-weight:800; font-size:.9rem">LOJAS INTERNO</span></h1>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Painel Principal</span>
+      </a>
+
+      <div class="nav-section-label">Operação de Insumos</div>
+      
+      <a href="#" class="nav-item" data-page="produtos">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <span>Itens & Validades</span>
+      </a>
+      
+      <!-- NOVA ABA -->
+      <a href="#" class="nav-item" data-page="etiquetas" style="border-left: 3px solid var(--accent); background: var(--accent-dim);">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        <span style="color:var(--accent); font-weight:600;">Etiquetas (Zebra)</span>
+      </a>
+
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" style="background:var(--accent-dim); color:var(--accent)">GE</div>
+        <div class="user-details">
+          <span class="user-name">Gerência</span>
+          <span class="user-role">Frente de Loja</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content" id="mainContent">
+    <!-- Top Header -->
+    <header class="top-header no-print">
+      <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="header-breadcrumb">
+        <span id="pageTitle">Painel de Loja</span>
+      </div>
+      <div class="header-actions">
+        <div class="date-display" id="dateDisplay"></div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-container" id="pageContainer">
+      <!-- Pages loaded dynamically -->
+    </div>
+  </main>
+
+  <!-- Global Modal -->
+  <div class="modal-overlay no-print" id="modalOverlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Título</h3>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container no-print" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="js/db.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/produtos.js"></script>
+  <script src="js/etiquetas.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

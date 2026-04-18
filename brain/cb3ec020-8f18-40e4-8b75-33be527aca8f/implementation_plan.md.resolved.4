@@ -1,0 +1,29 @@
+# Plano de Implementação: Gerador de Etiquetas de Validade
+
+O módulo de etiquetas será ideal para etiquetar lotes recém-produzidos nas cubas ou nas embalagens de armazenamento, garantindo que a equipe de operação obedeça o PEPS (Primeiro a Vencer, Primeiro a Sair).
+
+## 1. Ajuste no Cadastro de Produtos
+- **Problema atual:** Atualmente os produtos não têm um campo de *"Validade Padrão"*.
+- **Solução:** Vou adicionar o campo `"Validade Padrão (Dias)"` no cadastro de produtos. Assim, ao escolher um produto para gerar etiqueta, o sistema saberá calcular o vencimento matematicamente.
+
+## 2. A Nova Aba "🏷️ Etiquetas"
+Criaremos uma aba inteiramente focada nisso no menu lateral, contendo:
+- **Painel de Configuração da Impressão:**
+  - **Identificação:** Um "Select" para escolher o Produto (Ex: Carne Moída Pronta).
+  - **Data de Fabricação/Produção:** Campo de data padrão com a data de "Hoje".
+  - **Cálculo de Vencimento (Validade):** Preenchido automaticamente somando os dias de validade cadastrados no produto, mas permitindo edição manual.
+  - **Quantidade:** Quantas etiquetas você quer imprimir de uma vez?
+  - **Lote Interno (Opcional):** Um campo extra para preencher o código de rastreabilidade (ex: `L-0012`).
+
+## 3. Motor de Impressão (Layout Térmico/Padrão)
+- Vou criar uma interface que abre em **Pop-up** pronta para impressoras térmicas pequenas (Padrão 40x40mm ou similar - muito comum em cozinhas Mambo/Zebra/Argox) contendo as informações críticas de Vigilância Sanitária:
+  - Nome do Produto
+  - Data de Fracionamento / Fabricação
+  - Data de Validade 
+  - Condição de Armazenamento (Ex: Congelado <- *já puxaremos isso do cadastro do produto!*)
+  - Lote
+
+## Solicitando sua Aprovação
+
+> [!WARNING]
+> Esse modelo de impressão (janela focada com as etiquetas uma ao lado da outra prontas pra imprimir) está de acordo com o que você espera? Você usa hoje alguma impressora térmica (de bobina) ou você imprime em folha A4 em impressora comum? Vou desenhar o layout focando na impressora **Térmica 40x40 / 50x50 tradicional de cozinha**, mas funciona no A4 também se for preciso. Posso seguir?

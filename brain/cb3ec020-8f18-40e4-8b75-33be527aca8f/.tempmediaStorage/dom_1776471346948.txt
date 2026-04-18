@@ -1,0 +1,53 @@
+[0] (969,934)<div aria-label='Editar este formulário' class='uArJ5e cd29Sd UQuaGc YhQJj U1dMdf ctEux csJMfd' role='button' />
+	[1] (969,934)<span  />
+		[2] (969,934)<span  />
+[3] (497,17)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[4] (314,17)<div aria-label='VALPARAISO' class='Od2TWd hYsg7c' id='i6' role='radio' />
+		[5] (314,17)<div  />
+			[6] (314,17)<div  />
+	VALPARAISO
+[7] (497,72)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[8] (314,72)<div aria-label='VITORIA' class='Od2TWd hYsg7c' id='i9' role='radio' />
+		[9] (314,72)<div  />
+			[10] (314,72)<div  />
+	VITORIA
+[11] (497,127)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[12] (314,127)<div aria-label='ITAPARICA' class='Od2TWd hYsg7c' id='i12' role='radio' />
+		[13] (314,127)<div  />
+			[14] (314,127)<div  />
+	ITAPARICA
+[15] (497,181)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[16] (314,181)<div aria-label='GUARAPARI' class='Od2TWd hYsg7c' id='i15' role='radio' />
+		[17] (314,181)<div  />
+			[18] (314,181)<div  />
+	GUARAPARI
+[19] (497,236)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[20] (314,236)<div aria-label='LINHARES' class='Od2TWd hYsg7c' id='i18' role='radio' />
+		[21] (314,236)<div  />
+			[22] (314,236)<div  />
+	LINHARES
+[23] (497,291)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[24] (314,291)<div aria-label='ITAPOÃ' class='Od2TWd hYsg7c' id='i21' role='radio' />
+		[25] (314,291)<div  />
+			[26] (314,291)<div  />
+	ITAPOÃ
+[27] (338,347)<label class='docssharedWizToggleLabeledContainer ajBQVb' />
+	[28] (314,347)<div class='Od2TWd hYsg7c' id='i24' role='radio' />
+		[29] (314,347)<div  />
+			[30] (314,347)<div  />
+	Outro:
+[31] (527,345)<input aria-label='Outra resposta' class='Hvn9fb zHQkBf' />
+Pepperoni
+*
+[32] (404,551)<input class='whsOnd zHQkBf' />
+Sua resposta
+Carne Hamburguer
+*
+[33] (404,756)<input class='whsOnd zHQkBf' />
+Sua resposta
+Bacon em cubos
+*
+[34] (404,961)<input class='whsOnd zHQkBf' />
+Sua resposta
+[35] (19,960)<button aria-label='ajuda e feedback' class='VfPpkd-Bz112c-LgbsSe yHy1rc eT1oJ mN1ivc' />
+	[36] (19,960)<div  />

@@ -1,0 +1,156 @@
+🍳
+ChefERP
+Cozinha Industrial
+Dashboard
+Cadastros
+Produtos
+Fichas Técnicas
+Movimentação
+Entrada
+Produção
+Armazenamento
+Saída
+Análise
+Relatórios
+CZ
+Cozinha Industrial
+Administrador
+📦 Produtos
+qua., 15/04/26, 23:05
+📦 Produtos
+Cadastro e gerenciamento de todos os produtos
+➕
+NOVO PRODUTO
+📷 Ler Barcode
+⬇️ Exportar CSV
+Código
+Nome
+Categoria
+Forma de Entrega
+Temperatura
+Estoque Atual
+Mín/Máx
+Custo Unit.
+Local
+Status
+Ações
+FRA001
+Frango Inteiro
+Carnes
+—
+—
+45.00
+kg
+20/100 kg
+R$ 12.50
+Câmara Fria
+Normal
+✏️
+📋
+CAR002
+Carne Moída
+Carnes
+—
+—
+8.00
+kg
+10/50 kg
+R$ 28.00
+Câmara Fria
+Crítico
+✏️
+📋
+SAL003
+Salmão
+Carnes
+—
+—
+12.00
+kg
+5/30 kg
+R$ 65.00
+Congelador
+Normal
+✏️
+📋
+ARR004
+Arroz Agulhinha
+Grãos e Cereais
+—
+—
+80.00
+kg
+30/200 kg
+R$ 5.50
+Câmara Seca
+Normal
+✏️
+📋
+FEI005
+Feijão Preto
+Grãos e Cereais
+—
+—
+35.00
+kg
+20/100 kg
+R$ 7.80
+Câmara Seca
+Normal
+✏️
+📋
+ALH006
+Alho
+Hortifruti
+—
+—
+4.50
+kg
+3/20 kg
+R$ 22.00
+Despensa
+Normal
+✏️
+📋
+[0] (500,500)<div class='modal modal-lg' id='modal' scrollable='true' />
+	Entrega e Conservação
+	Forma de Entrega *
+	[1] (373,77)<select id='pFormaEntrega' />
+	Embalagem usada pelo fornecedor na entrega
+	Temperatura de Conservação *
+	[2] (617,91)<label class='temp-option' id='lbl-congelado' />
+		[3] (514,91)<input  />
+		[4] (534,91)<span >❄️ />
+		[5] (600,91)<div  />
+			[6] (600,82)<div >Congelado />
+			[7] (600,101)<div >Abaixo de -18°C — Congelador />
+	[8] (617,171)<label class='temp-option' id='lbl-resfriado' />
+		[9] (514,171)<input  />
+		[10] (534,171)<span >🧊 />
+		[11] (602,171)<div  />
+			[12] (602,162)<div >Resfriado />
+			[13] (602,181)<div >Entre 0°C e 10°C — Câmara Fria />
+	[14] (617,251)<label class='temp-option' id='lbl-ambiente' />
+		[15] (514,251)<input  />
+		[16] (534,251)<span >🌡️ />
+		[17] (621,251)<div  />
+			[18] (621,242)<div >Temperatura Ambiente />
+			[19] (621,261)<div >Acima de 10°C — Despensa / Câmara Seca />
+	Estoque e Armazenamento
+	[20] (373,361)<label >Unidade de Medida * />
+	[21] (373,406)<select id='pUnidade' />
+	[22] (617,361)<label >Local de Armazenamento />
+	[23] (617,406)<select id='pLocal' />
+	Sugestão automática pela temperatura
+	[24] (373,494)<label >Estoque Mínimo />
+	[25] (373,538)<input id='pEstMin' placeholder='0' />
+	[26] (617,494)<label >Estoque Máximo />
+	[27] (617,538)<input id='pEstMax' placeholder='0' />
+	[28] (373,596)<label >Estoque Inicial />
+	[29] (373,641)<input id='pEstInicial' placeholder='0' />
+	[30] (617,596)<label >Custo Unitário (R$) />
+	[31] (617,641)<input id='pCusto' placeholder='0.00' />
+	[32] (373,699)<label >Fornecedor Principal />
+	[33] (373,743)<input id='pFornecedor' placeholder='Nome do fornecedor' />
+	[34] (495,801)<label >Observações />
+	[35] (495,875)<textarea id='pObs' placeholder='Informações adicionais...' />

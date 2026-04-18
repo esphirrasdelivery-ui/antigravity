@@ -1,0 +1,7 @@
+# Netlify Deployment Task Checklist
+
+- [ ] Take screenshot of "Rename to index.html?" dialog
+- [ ] Click "Rename and deploy" button
+- [ ] Wait for deployment to complete (15-20s)
+- [ ] Take screenshot of the result
+- [ ] Extract and report the deployed URL (https://[name].netlify.app)

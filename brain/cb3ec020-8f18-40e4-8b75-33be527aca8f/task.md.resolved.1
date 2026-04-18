@@ -1,0 +1,15 @@
+# Integração de Pedidos Loja & Separação (Picking and Packing)
+
+- `[x]` 1. Extrair a lista exata de itens do Formulário Google da Esphirras para garantir paridade 1:1.
+- `[x]` 2. Criar a página pública `pedido.html` com branding e conexão direta ao Firebase (`chef_pedidos`).
+- `[ ]` 3. Atualizar a camada do banco de dados `js/db.js` para gerenciar a coleção de pedidos (sincronização cloud).
+- `[ ]` 4. Integrar o Painel de Pedidos no ERP Principal:
+  - Menu Lateral / Rota em `app.js`
+  - Container "Pedidos Pendentes"
+- `[ ]` 5. Desenvolver Interface de "Gerar Romaneio" para impressão amigável e leitura física.
+- `[ ]` 6. Desenvolver Módulo de Separação (Scanner View):
+  - Captura inteligente de scanner de código de barras
+  - Validação produto bipado vs produto pedido
+  - Incremento visual progressivo da contagem ("Bipou 2 de 5")
+- `[ ]` 7. Integração da baixa de estoque ("Finalizar Pedido" gera movimento de 'saída' apenas para a quantidade 100% conferida).
+- `[x]` 8. Atualizar build.ps1 para incluir `pedido.html` e fazer o deploy no Netlify.

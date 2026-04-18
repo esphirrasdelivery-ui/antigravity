@@ -1,0 +1,36 @@
+<current_dom_explanation>
+This is a temporary snapshot of the current page's DOM structure. The DOM will change if you navigate to or interact with another page. Use a tool like browser_get_dom to capture and preserve the DOM in your trajectory if needed for later reference.
+</current_dom_explanation>
+<current_dom>
+🍳
+ChefERP
+Cozinha Industrial
+[0] (200,55)<button class='sidebar-toggle' id='sidebarToggle' title='Fechar menu' />
+[1] (115,156)<a class='nav-item' href='#' />
+	[2] (79,156)<span >Dashboard />
+Cadastros
+[3] (115,261)<a class='nav-item' href='#' />
+	[4] (74,261)<span >Produtos />
+[5] (115,318)<a class='nav-item' href='#' />
+	[6] (95,318)<span >Fichas Técnicas />
+Movimentação
+[7] (115,423)<a class='nav-item active' href='#' />
+	[8] (70,423)<span >Entrada />
+[9] (115,480)<a class='nav-item' href='#' />
+	[10] (75,480)<span >Produção />
+[11] (115,537)<a class='nav-item' href='#' />
+	[12] (96,537)<span >Armazenamento />
+[13] (115,594)<a class='nav-item' href='#' />
+	[14] (63,594)<span >Saída />
+Análise
+[15] (115,699)<a class='nav-item' href='#' />
+	[16] (77,699)<span >Relatórios />
+CZ
+Cozinha Industrial
+Administrador
+📥 Entrada de Produtos
+qua., 15/04/26, 21:53
+[17] (958,45)<button class='btn-icon' id='notifBtn' title='Notificações' />
+	[18] (966,33)<span  />
+
+</current_dom>

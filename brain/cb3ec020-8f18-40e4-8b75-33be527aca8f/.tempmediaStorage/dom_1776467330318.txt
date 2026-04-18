@@ -1,0 +1,37 @@
+<current_dom_explanation>
+This is a temporary snapshot of the current page's DOM structure. The DOM will change if you navigate to or interact with another page. Use a tool like browser_get_dom to capture and preserve the DOM in your trajectory if needed for later reference.
+</current_dom_explanation>
+<current_dom>
+HTML, CSS, JavaScript
+Ready to try it out?
+You know what to do
+👇
+Drag and drop your
+project folder, zip file,
+or a single HTML file to deploy instantly.
+Or
+[0] (484,639)<label >browse files to upload />
+or
+[1] (527,650)<label >choose a folder />
+.
+[2] (62,903)<a class='btn btn-default btn--size-default btn-tertiary btn-tertiary--standard tw-w-auto tw-font-semibold tw-px-2 tw-min-h-9 tw-leading-6 tw-text-left dark:hover:tw-text-teal-lightest dark:hover:tw-bg-teal-darkest tw-text-gray-darker dark:tw-text-gray-light tw-py-1.5 tw-text-sm tw-text-textMuted hover:tw-text-teal-darkest' href='https://docs.netlify.com/'>Docs />
+[3] (102,903)<a class='btn btn-default btn--size-default btn-tertiary btn-tertiary--standard tw-w-auto tw-font-semibold tw-px-2 tw-min-h-9 tw-leading-6 tw-text-left dark:hover:tw-text-teal-lightest dark:hover:tw-bg-teal-darkest tw-text-gray-darker dark:tw-text-gray-light tw-py-1.5 tw-text-sm tw-text-textMuted hover:tw-text-teal-darkest' href='https://www.netlify.com/pricing/'>Pricing />
+[4] (149,903)<a class='btn btn-default btn--size-default btn-tertiary btn-tertiary--standard tw-w-auto tw-font-semibold tw-px-2 tw-min-h-9 tw-leading-6 tw-text-left dark:hover:tw-text-teal-lightest dark:hover:tw-bg-teal-darkest tw-text-gray-darker dark:tw-text-gray-light tw-py-1.5 tw-text-sm tw-text-textMuted hover:tw-text-teal-darkest' href='https://www.netlify.com/support/'>Support />
+[5] (191,903)<a class='btn btn-default btn--size-default btn-tertiary btn-tertiary--standard tw-w-auto tw-font-semibold tw-px-2 tw-min-h-9 tw-leading-6 tw-text-left dark:hover:tw-text-teal-lightest dark:hover:tw-bg-teal-darkest tw-text-gray-darker dark:tw-text-gray-light tw-py-1.5 tw-text-sm tw-text-textMuted hover:tw-text-teal-darkest' href='https://www.netlify.com/blog/'>Blog />
+[6] (238,903)<a class='btn btn-default btn--size-default btn-tertiary btn-tertiary--standard tw-w-auto tw-font-semibold tw-px-2 tw-min-h-9 tw-leading-6 tw-text-left dark:hover:tw-text-teal-lightest dark:hover:tw-bg-teal-darkest tw-text-gray-darker dark:tw-text-gray-light tw-py-1.5 tw-text-sm tw-text-textMuted hover:tw-text-teal-darkest' href='https://www.netlify.com/changelog/'>Changelog />
+[7] (288,903)<a class='btn btn-default btn--size-default btn-tertiary btn-tertiary--standard tw-w-auto tw-font-semibold tw-px-2 tw-min-h-9 tw-leading-6 tw-text-left dark:hover:tw-text-teal-lightest dark:hover:tw-bg-teal-darkest tw-text-gray-darker dark:tw-text-gray-light tw-py-1.5 tw-text-sm tw-text-textMuted hover:tw-text-teal-darkest' href='https://www.netlify.com/legal/terms-of-use/'>Terms />
+©
+2026
+[8] (98,952)<a class='
+    tw-text-inherit
+    false
+    tw-decoration-gray
+    tw-font-weight-inherit
+    hover:tw-text-black
+    hover:tw-decoration-inherit
+    dark:hover:tw-text-white
+    dark:tw-text-inherit
+    dark:tw-decoration-inherit
+  ' href='https://www.netlify.com'>Netlify />
+
+</current_dom>

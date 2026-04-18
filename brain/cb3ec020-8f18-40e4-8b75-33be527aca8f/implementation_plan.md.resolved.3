@@ -1,0 +1,36 @@
+# Conversão de "Pedido" para "Reposição Inteligente (Par-Level)"
+
+Excelente ideia! Em vez de pedir, as lojas farão um "inventário" e o sistema decide quanto enviar baseado em um teto pré-configurado. O nome técnico disso é ressuprimento por *Par-Level*, muito comum em redes de fast-food.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Como a Matemática Funciona:** 
+> O gerente diz: *"Tenho 2 Pepperonis."*
+> Você configurou que o máximo de Valparaíso é: *"10 Pepperonis"*.
+> **Sistema calcula:** O Romaneio vai mandar separar **8 Pepperonis** (10 - 2).
+> Se o gerente colocar *"12"*, o Romaneio vai acusar **0**.
+> Confirma essa lógica exata?
+
+## Proposed Changes
+
+### 1. Ajuste no Formulário da Loja 
+#### [MODIFY] [pedido.html](file:///C:/Users/luxan/.gemini/antigravity/scratch/kitchen-erp/pedido.html)
+- Mudança de textos: De *"Preencha as quantidades necessárias"* para *"Preencha o que VOCÊ TEM HOJE NA LOJA (Inventário)"*.
+- O gerente entenderá que está informando o estoque atual da loja e não fazendo um pedido discricionário.
+
+### 2. Configuração no ERP
+#### [MODIFY] [js/db.js](file:///C:/Users/luxan/.gemini/antigravity/scratch/kitchen-erp/js/db.js)
+- Criação de uma nova coleção no banco de dados: `chef_lojas_metas` para salvar a "régua máxima" de cada item de cada loja.
+
+#### [MODIFY] [js/pedidos.js](file:///C:/Users/luxan/.gemini/antigravity/scratch/kitchen-erp/js/pedidos.js)
+- **Botão "Configurar Metas das Lojas":** Ficará visível dentro da própria aba de Pedidos.
+- Interface onde você escolhe uma loja (Ex: VITORIA) e digita qual é o "Estoque Máximo Ideal" (a meta) de cada um dos insumos.
+- **Romaneio Inteligente:** Toda a lógica de imprimir o PDF e do Scanner de Bipagem vai mudar para calcular `Meta Máxima - Quantidade Informada = Total a Separar`. 
+- Se a quantidade calculada for `<= 0`, o item nem aparece no papéis do Romaneio da equipe que vai pra câmara fria (poupa tempo!).
+
+## Open Questions
+
+> [!WARNING]
+> A loja pode pedir algo Extra se não for dia de inventário, ou **SEMPRE** enviaremos baseado apenas no resultado `Teto - Estoque atual`? 
+> Exemplo: O gerente tem 5 fardos (a meta é 10), então mandaremos 5. Ele pode sinalizar que "Nesse final de semana tem evento, mande 10"? No momento o formulário enviará cálculos "cegos" e fixos com base na meta.

@@ -1,0 +1,14 @@
+# Task: Verify "Controle Cozinha Central" rebranding and logo
+
+## Plan
+- [ ] Open http://localhost:8765/cheferp.html
+- [ ] Wait 3 seconds for it to load
+- [ ] Verify Esphirras logo in sidebar
+- [ ] Verify "Controle Cozinha Central" text in sidebar
+- [ ] Verify browser tab title
+- [ ] Take screenshots as evidence
+
+## Findings
+- Logo: Pending
+- Text: Pending
+- Title: Pending

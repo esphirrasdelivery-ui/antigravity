@@ -1,0 +1,11 @@
+# Task: Verify Netlify Deployment
+
+- [ ] Navigate to https://effortless-treacle-799b6a.netlify.app
+- [ ] Wait 5 seconds for page load
+- [ ] Take full screenshot
+- [ ] Verify Esphirra's yellow logo in left sidebar
+- [ ] Verify "Controle" and "Cozinha Central" text in sidebar
+- [ ] Verify status indicator (☁️ Nuvem ativa / 💾 Modo offline)
+- [ ] Verify dashboard stats cards
+- [ ] Take second screenshot (scrolled) if needed
+- [ ] Report findings

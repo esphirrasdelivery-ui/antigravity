@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pedido Semanal - Esphirra's Delivery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* RESET & BASE */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #f5f7fa;
+      --bg-card: #ffffff;
+      --accent: #FFDD00; /* Esphirras Amarelo */
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --border-focus: #cbd5e1;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      padding: 20px;
+      padding-bottom: 80px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--bg-card);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+    }
+    .header {
+      background-color: var(--accent);
+      padding: 30px 20px;
+      text-align: center;
+      border-bottom: 2px solid #eab308;
+    }
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #000;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      color: rgba(0,0,0,0.7);
+      margin-top: 8px;
+      font-weight: 500;
+    }
+    .form-content {
+      padding: 30px;
+    }
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin: 30px 0 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+      color: var(--text-main);
+    }
+    .form-group {
+      margin-bottom: 20px;
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+    select, input[type="number"], input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: #94a3b8;
+      box-shadow: 0 0 0 3px rgba(255, 221, 0, 0.3);
+    }
+    .item-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+    }
+    .item-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .item-card label {
+      margin-bottom: 0;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .item-card input {
+      width: 80px;
+      text-align: center;
+    }
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background-color: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 30px;
+      transition: background-color 0.2s;
+    }
+    .btn-submit:hover {
+      background-color: #0284c7;
+    }
+    .btn-submit:disabled {
+      background-color: #94a3b8;
+      cursor: not-allowed;
+    }
+    
+    #successBox {
+      display: none;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    #successBox h2 {
+      color: #10b981;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container" id="mainContainer">
+  <div class="header">
+    <h1>Inventário da Loja</h1>
+    <p>Preencha as quantidades ATUAIS que você tem na loja</p>
+  </div>
+  
+  <div class="form-content" id="formContent">
+    <form id="pedidoForm">
+      
+      <div class="form-group">
+        <label for="loja">Qual é a Loja?</label>
+        <select id="loja" required>
+          <option value="">Selecione a unidade...</option>
+          <option value="VALPARAISO">VALPARAISO</option>
+          <option value="VITORIA">VITORIA</option>
+          <option value="ITAPARICA">ITAPARICA</option>
+          <option value="GUARAPARI">GUARAPARI</option>
+          <option value="LINHARES">LINHARES</option>
+          <option value="ITAPOÃ">ITAPOÃ</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+
+      <div id="itemsContainer"></div>
+
+      <button type="submit" class="btn-submit" id="btnSubmit">Enviar Inventário para Cozinha Central</button>
+    </form>
+  </div>
+  
+  <div id="successBox">
+    <h2>Inventário Enviado! ✅</h2>
+    <p>O nível do seu estoque foi recebido com sucesso na base da Cozinha Central e o sistema calculará as necessidades de reposição automaticamente.</p>
+    <button class="btn-submit" style="margin-top:20px; background-color:#334155" onclick="location.reload()">Fazer Novo Lançamento</button>
+  </div>
+</div>
+
+<script>
+// ----- DADOS DO FORMULÁRIO -----
+const CATEGORIAS = [
+  {
+    nome: "Insumos (Pacotes/Kg/Un)",
+    itens: [
+      "Pepperoni", "Carne Hamburguer", "Bacon em cubos", "Calabresa triturada", "Carne moída", 
+      "Carne de Panela", "Cebola caramelizada", "Filé em Cubos", "Frango Desfiado", "Frango defumado", 
+      "Lombo Assado", "Mexicana", "Mini kibe", "Mistura Liquida", "Mistura para maionese", 
+      "Mistura Seca 5 kg", "Mistura Seca 15 kg", "Molho Gorgonzola", "Presunto triturado", "Chocolate Branco"
+    ]
+  },
+  {
+    nome: "Embalagens (Fardos/Caixas)",
+    itens: [
+      "Caixa 1", "Caixa 2", "Caixa 4", "Caixa 6", "Caixa 8", "Caixa 12", 
+      "Tira P", "Tira G", "Bandeja P", "Bandeja G", "Papel Bandeja", 
+      "Garra 300ml", "Garra 1 litro"
+    ]
+  }
+];
+
+// ----- MONTAGEM DO HTML -----
+const container = document.getElementById('itemsContainer');
+CATEGORIAS.forEach(cat => {
+  const sec = document.createElement('div');
+  sec.innerHTML = `<h3 class="section-title">${cat.nome}</h3>`;
+  const grid = document.createElement('div');
+  grid.className = 'item-grid';
+  
+  cat.itens.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <label>${item}</label>
+      <input type="number" min="0" step="1" name="item_${item}" placeholder="0" />
+    `;
+    grid.appendChild(card);
+  });
+  
+  sec.appendChild(grid);
+  container.appendChild(sec);
+});
+
+// ----- INTEGRAÇÃO FIREBASE -----
+const FIREBASE_URL = "https://controle-cozinha-central-default-rtdb.firebaseio.com/chef_pedidos.json";
+
+document.getElementById('pedidoForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('btnSubmit');
+  
+  // Coletar dados
+  const loja = document.getElementById('loja').value;
+  if(!loja) return alert("Selecione a Loja!");
+  
+  const inputs = document.querySelectorAll('.item-card input');
+  const itensPedidos = [];
+  
+  inputs.forEach(inp => {
+    const qty = parseInt(inp.value);
+    if(qty > 0) {
+      const nome = inp.name.replace('item_', '');
+      itensPedidos.push({
+        nome: nome,
+        quantidade: qty,
+        separado: 0 // Usado no módulo de separação para tracking
+      });
+    }
+  });
+  
+  if(itensPedidos.length === 0) {
+    return alert("Você precisa pedir pelo menos 1 item para enviar.");
+  }
+  
+  // Objeto de Pedido
+  const pedidoData = {
+    id: 'ped' + Date.now().toString(),
+    loja: loja,
+    data: new Date().toISOString(),
+    status: 'pendente', // pendente, separacao, finalizado
+    itens: itensPedidos,
+    solicitante: 'Gerente da Loja'
+  };
+  
+  // Enviar
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    
+    const res = await fetch(FIREBASE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pedidoData)
+    });
+    
+    if(!res.ok) throw new Error("Falha na rede ao salvar no Firebase.");
+    
+    // Sucesso
+    document.getElementById('formContent').style.display = 'none';
+    document.getElementById('successBox').style.display = 'block';
+    
+  } catch(err) {
+    console.error(err);
+    alert("Erro ao enviar pedido! Verifique a internet e tente novamente.");
+    btn.disabled = false;
+    btn.textContent = 'Enviar Pedido para Cozinha Central';
+  }
+});
+</script>
+</body>
+</html>

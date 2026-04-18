@@ -1,0 +1,126 @@
+🍳
+ChefERP
+Cozinha Industrial
+[0] (135,53)<button class='sidebar-toggle' id='sidebarToggle' title='Fechar menu' />
+[1] (78,150)<a class='nav-item' href='#' />
+	[2] (54,150)<span >Dashboard />
+Cadastros
+[3] (78,251)<a class='nav-item active' href='#' />
+	[4] (50,251)<span >Produtos />
+[5] (78,306)<a class='nav-item' href='#' />
+	[6] (64,306)<span >Fichas Técnicas />
+Movimentação
+[7] (78,407)<a class='nav-item' href='#' />
+	[8] (47,407)<span >Entrada />
+[9] (78,462)<a class='nav-item' href='#' />
+	[10] (51,462)<span >Produção />
+[11] (78,517)<a class='nav-item' href='#' />
+	[12] (65,517)<span >Armazenamento />
+[13] (78,572)<a class='nav-item' href='#' />
+	[14] (43,572)<span >Saída />
+Análise
+[15] (78,673)<a class='nav-item' href='#' />
+	[16] (52,673)<span >Relatórios />
+CZ
+Cozinha Industrial
+Administrador
+📦 Produtos
+qua., 15/04/26, 23:01
+📦 Produtos
+Cadastro e gerenciamento de todos os produtos
+[17] (612,272)<button  />
+	[18] (557,272)<span >➕ />
+	[19] (628,272)<span >NOVO PRODUTO />
+[20] (297,424)<input id='searchProduto' placeholder='Buscar produto...' />
+[21] (457,424)<select id='filtroCategoria' />
+[22] (915,424)<button class='btn btn-secondary btn-sm'>📷 Ler Barcode />
+[23] (998,424)<button class='btn btn-secondary btn-sm'>⬇️ Exportar CSV />
+Código
+Nome
+Categoria
+Forma de Entrega
+Temperatura
+Estoque Atual
+Mín/Máx
+Custo Unit.
+Local
+Status
+Ações
+FRA001
+Frango Inteiro
+Carnes
+—
+—
+45.00
+kg
+20/100 kg
+R$ 12.50
+Câmara Fria
+Normal
+[24] (964,578)<button class='btn btn-secondary btn-sm' title='Editar'>✏️ />
+[25] (994,578)<button class='btn btn-secondary btn-sm' title='Histórico'>📋 />
+CAR002
+Carne Moída
+Carnes
+—
+—
+8.00
+kg
+10/50 kg
+R$ 28.00
+Câmara Fria
+Crítico
+[26] (964,661)<button class='btn btn-secondary btn-sm' title='Editar'>✏️ />
+[27] (994,661)<button class='btn btn-secondary btn-sm' title='Histórico'>📋 />
+SAL003
+Salmão
+Carnes
+—
+—
+12.00
+kg
+5/30 kg
+R$ 65.00
+Congelador
+Normal
+[28] (964,742)<button class='btn btn-secondary btn-sm' title='Editar'>✏️ />
+[29] (994,742)<button class='btn btn-secondary btn-sm' title='Histórico'>📋 />
+ARR004
+Arroz Agulhinha
+Grãos e Cereais
+—
+—
+80.00
+kg
+30/200 kg
+R$ 5.50
+Câmara Seca
+Normal
+[30] (964,824)<button class='btn btn-secondary btn-sm' title='Editar'>✏️ />
+[31] (994,824)<button class='btn btn-secondary btn-sm' title='Histórico'>📋 />
+FEI005
+Feijão Preto
+Grãos e Cereais
+—
+—
+35.00
+kg
+20/100 kg
+R$ 7.80
+Câmara Seca
+Normal
+[32] (964,907)<button class='btn btn-secondary btn-sm' title='Editar'>✏️ />
+[33] (994,907)<button class='btn btn-secondary btn-sm' title='Histórico'>📋 />
+ALH006
+Alho
+Hortifruti
+—
+—
+4.50
+kg
+3/20 kg
+R$ 22.00
+Despensa
+Normal
+[34] (964,989)<button class='btn btn-secondary btn-sm' title='Editar'>✏️ />
+[35] (994,989)<button class='btn btn-secondary btn-sm' title='Histórico'>📋 />

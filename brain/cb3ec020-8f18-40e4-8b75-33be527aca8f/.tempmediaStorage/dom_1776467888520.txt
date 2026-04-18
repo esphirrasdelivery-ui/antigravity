@@ -1,0 +1,5 @@
+Password protected site
+Please enter your password to get access.
+Wrong password, please try again.
+[0] (500,542)<input placeholder='Password' />
+[1] (500,630)<button class='button'>Submit />

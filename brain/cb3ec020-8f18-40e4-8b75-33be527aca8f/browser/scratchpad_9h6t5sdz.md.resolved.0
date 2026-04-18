@@ -1,0 +1,8 @@
+# Project: Extract Google Form Details
+- [x] Open Google Form URL
+- [x] Wait 5 seconds
+- [ ] Read title and questions (partially seen)
+- [ ] Scroll to see all questions
+- [ ] List all questions, types, and options
+- [ ] Take a final screenshot
+- [ ] Return summary

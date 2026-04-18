@@ -1,0 +1,25 @@
+[0] (969,934)<div aria-label='Editar este formulário' class='uArJ5e cd29Sd UQuaGc YhQJj U1dMdf ctEux csJMfd' role='button' />
+	[1] (969,934)<span  />
+		[2] (969,934)<span  />
+Carne Hamburguer
+*
+[3] (404,71)<input class='whsOnd zHQkBf' />
+Sua resposta
+Bacon em cubos
+*
+[4] (404,276)<input class='whsOnd zHQkBf' />
+Sua resposta
+Calabresa triturada
+*
+[5] (404,481)<input class='whsOnd zHQkBf' />
+Sua resposta
+Carne moída
+*
+[6] (404,686)<input class='whsOnd zHQkBf' />
+Sua resposta
+Carne de Panela
+*
+[7] (404,891)<input class='whsOnd zHQkBf' />
+Sua resposta
+[8] (19,960)<button aria-label='ajuda e feedback' class='VfPpkd-Bz112c-LgbsSe yHy1rc eT1oJ mN1ivc' />
+	[9] (19,960)<div  />
