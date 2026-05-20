@@ -238,38 +238,40 @@ function _normalizarCatalogo(data) {
   return [];
 }
 
-function _aplicarMaxPadrao(categorias) {
-  const padrao = _catalogoPadrao();
-  return categorias.map(cat => {
-    const catPad = padrao.find(c => c.id === cat.id);
-    if (!catPad || !cat.itens) return cat;
-    const maxPad = {};
-    catPad.itens.forEach(i => { maxPad[i.nome] = i.max; });
-    return { ...cat, itens: cat.itens.map(item => ({
-      ...item,
-      max: (item.max > 0) ? item.max : (maxPad[item.nome] || 0)
-    }))};
-  });
-}
-
 async function init() {
+  // Base: sempre começa com o catálogo embutido (max corretos garantidos)
+  CATEGORIAS = _catalogoPadrao();
+
+  // Tenta enriquecer com dados do Firebase (estrutura e itens customizados)
   try {
     const resCat  = await fetch(FIREBASE_CATALOGO_URL);
     const dataCat = await resCat.json();
-    const cats = _normalizarCatalogo(dataCat);
-    if (cats.length) CATEGORIAS = _aplicarMaxPadrao(cats);
-  } catch (e) { console.warn('Erro ao carregar dados.'); }
-
-  // Fallback 1: localStorage
-  if (!CATEGORIAS.length) {
-    try {
-      const local = JSON.parse(localStorage.getItem('chef_pedido_catalogo') || '[]');
-      if (Array.isArray(local) && local.length) CATEGORIAS = local;
-    } catch(e) {}
-  }
-
-  // Fallback 2: catálogo embutido
-  if (!CATEGORIAS.length) CATEGORIAS = _catalogoPadrao();
+    const catsFB  = _normalizarCatalogo(dataCat);
+    if (catsFB.length) {
+      // Para cada categoria do padrão, mescla itens do Firebase preservando max do padrão
+      CATEGORIAS = CATEGORIAS.map(catPad => {
+        const catFB = catsFB.find(c => c.id === catPad.id);
+        if (!catFB) return catPad;
+        const itensArr = Array.isArray(catFB.itens) ? catFB.itens
+                       : (catFB.itens && typeof catFB.itens === 'object') ? Object.values(catFB.itens)
+                       : null;
+        if (!itensArr) return catPad;
+        const maxPad = {};
+        catPad.itens.forEach(i => { maxPad[i.nome] = i.max; });
+        return {
+          ...catFB,
+          itens: itensArr.filter(i => i && i.nome).map(item => ({
+            ...item,
+            max: (item.max > 0) ? item.max : (maxPad[item.nome] || 0)
+          }))
+        };
+      });
+      // Acrescenta categorias do Firebase que não existem no padrão
+      catsFB.forEach(catFB => {
+        if (!CATEGORIAS.find(c => c.id === catFB.id)) CATEGORIAS.push(catFB);
+      });
+    }
+  } catch (e) { console.warn('Erro ao carregar catálogo:', e.message); }
 
   // Deriva Recheios dos produtos cadastrados (roda DEPOIS dos fallbacks para não bloquear os outros)
   try {
