@@ -218,17 +218,32 @@ function _catalogoPadrao() {
   ];
 }
 
+function _normalizarCatalogo(data) {
+  if (!data) return [];
+  if (typeof data === 'string') {
+    try { return _normalizarCatalogo(JSON.parse(data)); } catch(e) { return []; }
+  }
+  if (Array.isArray(data)) {
+    if (data.length === 1 && (Array.isArray(data[0]) || typeof data[0] === 'string'))
+      return _normalizarCatalogo(data[0]);
+    const cats = data.filter(c => c && typeof c === 'object' && !Array.isArray(c) && (c.id || c.nome));
+    return cats.length ? cats : [];
+  }
+  if (typeof data === 'object') {
+    const vals = Object.values(data);
+    const cats = vals.filter(v => v && typeof v === 'object' && !Array.isArray(v) && (v.id || v.nome));
+    if (cats.length) return cats;
+    for (const v of vals) { const r = _normalizarCatalogo(v); if (r.length) return r; }
+  }
+  return [];
+}
+
 async function init() {
   try {
     const resCat  = await fetch(FIREBASE_CATALOGO_URL);
     const dataCat = await resCat.json();
-
-    if (dataCat) {
-      const arr = Array.isArray(dataCat) ? dataCat : Object.values(dataCat);
-      // Firebase POST cria push ID: Object.values retorna [[...]] — achata se necessário
-      const flat = (arr.length === 1 && Array.isArray(arr[0])) ? arr[0] : arr;
-      if (flat.length) CATEGORIAS = flat;
-    }
+    const cats = _normalizarCatalogo(dataCat);
+    if (cats.length) CATEGORIAS = cats;
   } catch (e) { console.warn('Erro ao carregar dados.'); }
 
   // Fallback 1: localStorage
