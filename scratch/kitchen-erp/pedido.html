@@ -220,30 +220,12 @@ function _catalogoPadrao() {
 
 async function init() {
   try {
-    const [resCat, resProd] = await Promise.all([
-      fetch(FIREBASE_CATALOGO_URL),
-      fetch(FIREBASE_BASE + '/chef_produtos.json')
-    ]);
-    const dataCat  = await resCat.json();
-    const dataProd = await resProd.json();
+    const resCat  = await fetch(FIREBASE_CATALOGO_URL);
+    const dataCat = await resCat.json();
 
     if (dataCat) {
-      CATEGORIAS = Array.isArray(dataCat) ? dataCat : Object.values(dataCat);
-    }
-
-    // Deriva Recheios dos produtos cadastrados com categoria "Recheios"
-    if (dataProd) {
-      const prods = Object.values(dataProd).filter(p => p && p.categoria === 'Recheios');
-      if (prods.length > 0) {
-        prods.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
-        const recheiosCat = {
-          id: 'insumos', nome: 'Recheios', icon: '🥩',
-          itens: prods.map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0), fornecedor: p.fornecedor || '' }))
-        };
-        const idx = CATEGORIAS.findIndex(c => c.id === 'insumos');
-        if (idx >= 0) CATEGORIAS[idx] = recheiosCat;
-        else CATEGORIAS.unshift(recheiosCat);
-      }
+      const arr = Array.isArray(dataCat) ? dataCat : Object.values(dataCat);
+      if (arr.length) CATEGORIAS = arr;
     }
   } catch (e) { console.warn('Erro ao carregar dados.'); }
 
@@ -257,6 +239,25 @@ async function init() {
 
   // Fallback 2: catálogo embutido
   if (!CATEGORIAS.length) CATEGORIAS = _catalogoPadrao();
+
+  // Deriva Recheios dos produtos cadastrados (roda DEPOIS dos fallbacks para não bloquear os outros)
+  try {
+    const resProd = await fetch(FIREBASE_BASE + '/chef_produtos.json');
+    const dataProd = await resProd.json();
+    if (dataProd) {
+      const prods = Object.values(dataProd).filter(p => p && p.categoria === 'Recheios');
+      if (prods.length > 0) {
+        prods.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+        const recheiosCat = {
+          id: 'insumos', nome: 'Recheios', icon: '🥩',
+          itens: prods.map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0), fornecedor: p.fornecedor || '' }))
+        };
+        const idx = CATEGORIAS.findIndex(c => c.id === 'insumos');
+        if (idx >= 0) CATEGORIAS[idx] = recheiosCat;
+        else CATEGORIAS.unshift(recheiosCat);
+      }
+    }
+  } catch (e) { /* mantém Recheios do catálogo */ }
 
   // Aplica filtro de categorias se informado na URL
   if (catsFiltro) CATEGORIAS = CATEGORIAS.filter(c => catsFiltro.includes(c.id));
