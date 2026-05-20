@@ -238,12 +238,26 @@ function _normalizarCatalogo(data) {
   return [];
 }
 
+function _aplicarMaxPadrao(categorias) {
+  const padrao = _catalogoPadrao();
+  return categorias.map(cat => {
+    const catPad = padrao.find(c => c.id === cat.id);
+    if (!catPad || !cat.itens) return cat;
+    const maxPad = {};
+    catPad.itens.forEach(i => { maxPad[i.nome] = i.max; });
+    return { ...cat, itens: cat.itens.map(item => ({
+      ...item,
+      max: (item.max > 0) ? item.max : (maxPad[item.nome] || 0)
+    }))};
+  });
+}
+
 async function init() {
   try {
     const resCat  = await fetch(FIREBASE_CATALOGO_URL);
     const dataCat = await resCat.json();
     const cats = _normalizarCatalogo(dataCat);
-    if (cats.length) CATEGORIAS = cats;
+    if (cats.length) CATEGORIAS = _aplicarMaxPadrao(cats);
   } catch (e) { console.warn('Erro ao carregar dados.'); }
 
   // Fallback 1: localStorage
