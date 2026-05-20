@@ -3,6 +3,17 @@ html_artifacts/
 
 # Segredos locais — NUNCA commitar
 secrets.ps1
+**/secrets.ps1
+
+# Arquivos gerados pelo build — nunca commitar
+**/cheferp.html
+**/*.zip
+**/node_modules/
+**/.wrangler/
+
+# Debug e screenshots temporários
+*.png
+*.jpg
 
 # Gemini/Antigravity internal state (nao commitar)
 brain/
@@ -11,3 +22,6 @@ annotations/
 *.pb
 *_state.pbtxt
 agyhub_summaries_proto.pb
+installation_id
+bin/
+mcp/
