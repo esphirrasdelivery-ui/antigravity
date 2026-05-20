@@ -1,2 +1,13 @@
 browser_recordings/
 html_artifacts/
+
+# Segredos locais — NUNCA commitar
+secrets.ps1
+
+# Gemini/Antigravity internal state (nao commitar)
+brain/
+conversations/
+annotations/
+*.pb
+*_state.pbtxt
+agyhub_summaries_proto.pb

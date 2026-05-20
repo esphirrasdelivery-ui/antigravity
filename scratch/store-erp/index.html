@@ -11,6 +11,16 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+  setTimeout(() => {
+     const p = document.getElementById("pageContainer");
+     if(p) p.innerHTML = "<div style='color:red;font-size:20px;padding:50px;background:white'>ERRO CAPTURADO: " + msg + "<br>Line: " + line + "</div>";
+     else document.body.innerHTML += "<div style='color:red;font-size:20px;padding:50px;background:white'>ERRO CAPTURADO: " + msg + "<br>Line: " + line + "</div>";
+  }, 100);
+  return false;
+};
+</script>
 
   <!-- Overlay para fechar sidebar mobile -->
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -40,7 +50,13 @@
         <span>Itens & Validades</span>
       </a>
       
-      <!-- NOVA ABA -->
+      <!-- NOVA ABA (COMPRAS) -->
+      <a href="#" class="nav-item" data-page="pedidos" style="border-left: 3px solid #10b981; background: rgba(16,185,129,0.05);">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#10b981"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span style="color:#10b981; font-weight:600;">Pedidos / Compras</span>
+      </a>
+
+      <!-- Etiquetas -->
       <a href="#" class="nav-item" data-page="etiquetas" style="border-left: 3px solid var(--accent); background: var(--accent-dim);">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         <span style="color:var(--accent); font-weight:600;">Etiquetas (Zebra)</span>
@@ -98,6 +114,7 @@
   <script src="js/db.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/produtos.js"></script>
+  <script src="js/pedidos.js"></script>
   <script src="js/etiquetas.js"></script>
   <script src="js/app.js"></script>
 </body>

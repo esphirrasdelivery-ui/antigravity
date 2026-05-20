@@ -3,6 +3,7 @@ const App = {
   pages: {
     dashboard: { module: 'DashboardPage', title: 'Painel Principal' },
     produtos:  { module: 'ProdutosPage', title: 'Itens & Validades' },
+    pedidos:   { module: 'PedidosPage', title: 'Pedidos e Compras' },
     etiquetas: { module: 'EtiquetasPage', title: 'Gerador de Etiquetas (Zebra)' }
   },
 
@@ -42,6 +43,7 @@ const App = {
         window.moduleRegistry = {
           DashboardPage: DashboardPage,
           ProdutosPage:  ProdutosPage,
+          PedidosPage:   PedidosPage,
           EtiquetasPage: EtiquetasPage
         };
     }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * db.js — Camada de dados: Firebase Realtime Database + LocalStorage (cache offline)
  * Controle Cozinha Central — Esphirra's Delivery
  *
@@ -95,7 +95,7 @@ function _inicializarFirebase() {
 }
 
 function _sincronizarDoFirebase() {
-  var colecoes = ['loja_produtos', 'loja_movimentacoes', 'loja_lotes', 'loja_producoes', 'loja_fichas', 'loja_pedidos', 'loja_lojas_metas'];
+  var colecoes = ['loja_produtos', 'loja_movimentacoes', 'loja_lotes', 'loja_producoes', 'loja_fichas', 'loja_pedidos', 'loja_lojas_metas', 'loja_compras_produtos', 'loja_compras_pedidos'];
   Promise.all(colecoes.map(function(col) {
     return FB.get(col).then(function(dados) {
       if (dados && dados.length > 0) {
@@ -436,6 +436,70 @@ const DB = {
     ];
 
     produtosBase.forEach(p => this.addProduto({ ...p, fornecedor: '', observacoes: '' }));
+  },
+// ===== COMPRAS DE LOJA (PEDIDOS E PRODUTOS DE COMPRA INTERNA) =====
+  getProdutosCompra() {
+    return _getLocal('loja_compras_produtos');
+  },
+  saveProdutosCompra(data) {
+    _saveLocal('loja_compras_produtos', data);
+  },
+  addProdutoCompra(produto) {
+    const produtos = this.getProdutosCompra();
+    produto.id = 'pc' + Date.now().toString() + Math.random().toString(36).substr(2, 4);
+    produtos.push(produto);
+    this.saveProdutosCompra(produtos);
+    _saveFirebase('loja_compras_produtos', produto.id, produto);
+    return produto;
+  },
+  deleteProdutoCompra(id) {
+    const produtos = this.getProdutosCompra().filter(p => p.id !== id);
+    this.saveProdutosCompra(produtos);
+    _deleteFirebase('loja_compras_produtos', id);
+  },
+
+  getPedidosCompra() {
+    return _getLocal('loja_compras_pedidos') || [];
+  },
+  savePedidosCompra(data) {
+    _saveLocal('loja_compras_pedidos', data);
+  },
+  addPedidoCompra(pedido) {
+    const pedidos = this.getPedidosCompra();
+    pedido.id = 'pedc' + Date.now().toString();
+    pedido.data = new Date().toISOString();
+    pedidos.push(pedido);
+    this.savePedidosCompra(pedidos);
+    _saveFirebase('loja_compras_pedidos', pedido.id, pedido);
+    return pedido;
+  },
+
+  // ===== INICIALIZAÇÃO DE DADOS DE COMPRA (ROBÔ DE SEED) =====
+  seedProdutosCompra() {
+    if (this.getProdutosCompra().length > 0) return; // Ja tem dados
+
+    const listaMercearia = [
+      "MUSSARELA PÇ", "Requeijão 1,8 kg", "Cheddar 1,2 kg", "PARMESÃO Peça", "GORGONZOLA Peça",
+      "OREGANO Pacote", "KETCHUP 3,5 L", "Cream Cheese 1 kg", "Lombo Canadense", "Hamburgueira",
+      "Sacolina de chupchup", "LEITE NINHO", "Bombom Ouro Branco", "CALABRESA FATIADA", 
+      "Chocolate branco", "Papel Lanche UN", "Doce de Leite Caixa", "Alho Poro", "Trigo kg", "Ovo de Galinha"
+    ];
+    
+    const listaLimpeza = [
+      "Multiuso Caixa", "Detergente Caixa", "Cloro Galão", "Sabão pó CX 500G", "Bombril Pacote",
+      "Esponja fina pacote", "Esponja grossa UN", "Limpador Forno", "Saco Lixo 100L Fardo",
+      "Saco Lixo 200 l Fardo", "Luva Preta Caixa", "Touca Pacote", "Papel para maos"
+    ];
+
+    const listaBebidas = [
+      "Guarana 1,5 L", "Guarana 1,5 l Zero", "Guarana 600 ml", "Guarana 600 ml Zero", "Guarana Lata",
+      "Guarana Lata Zero", "Agua sem gas", "Agua com gas", "Schwepps Lata", "H2O Limao", "H2O Limoneto"
+    ];
+
+    listaMercearia.forEach(nome => this.addProdutoCompra({ nome, categoria: 'Laticínios e Mercearia' }));
+    listaLimpeza.forEach(nome => this.addProdutoCompra({ nome, categoria: 'Limpeza e Descartáveis' }));
+    listaBebidas.forEach(nome => this.addProdutoCompra({ nome, categoria: 'Bebidas' }));
+    console.log('[DB] Produtos de Compra injetados com sucesso.');
   }
 };
 
@@ -443,4 +507,7 @@ const DB = {
 _inicializarFirebase();
 
 // Inicializa dados de exemplo se banco vazio
-setTimeout(function() { DB.inicializarDadosExemplo(); }, 500);
+setTimeout(function() { 
+    DB.inicializarDadosExemplo(); 
+    DB.seedProdutosCompra();
+}, 500);

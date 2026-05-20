@@ -1,7 +1,0 @@
-{
-  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
-  "summary": "Plano inicial para a arquitetura e deploy do novo projeto ERP de Lojas, incluindo módulo de Etiquetas e deploy isolado.",
-  "updatedAt": "2026-04-18T01:14:43.774635800Z",
-  "version": "5",
-  "requestFeedback": true
-}

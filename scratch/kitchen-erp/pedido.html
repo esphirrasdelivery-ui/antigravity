@@ -13,7 +13,7 @@
     :root {
       --bg-primary: #f5f7fa;
       --bg-card: #ffffff;
-      --accent: #FFDD00; /* Esphirras Amarelo */
+      --accent: #FFDD00;
       --text-main: #1e293b;
       --text-muted: #64748b;
       --border: #e2e8f0;
@@ -75,19 +75,13 @@
       margin-bottom: 8px;
       color: var(--text-main);
     }
-    select, input[type="number"], input[type="text"] {
+    select, input[type="number"] {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 1rem;
       font-family: inherit;
-      transition: border-color 0.2s;
-    }
-    select:focus, input:focus {
-      outline: none;
-      border-color: #94a3b8;
-      box-shadow: 0 0 0 3px rgba(255, 221, 0, 0.3);
     }
     .item-grid {
       display: grid;
@@ -123,25 +117,13 @@
       font-weight: 700;
       cursor: pointer;
       margin-top: 30px;
-      transition: background-color 0.2s;
     }
-    .btn-submit:hover {
-      background-color: #0284c7;
-    }
-    .btn-submit:disabled {
-      background-color: #94a3b8;
-      cursor: not-allowed;
-    }
-    
     #successBox {
       display: none;
       padding: 40px 20px;
       text-align: center;
     }
-    #successBox h2 {
-      color: #10b981;
-      margin-bottom: 10px;
-    }
+    #successBox h2 { color: #10b981; margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -154,141 +136,275 @@
   
   <div class="form-content" id="formContent">
     <form id="pedidoForm">
-      
-      <div class="form-group">
-        <label for="loja">Qual é a Loja?</label>
-        <select id="loja" required>
-          <option value="">Selecione a unidade...</option>
-          <option value="VALPARAISO">VALPARAISO</option>
-          <option value="VITORIA">VITORIA</option>
-          <option value="ITAPARICA">ITAPARICA</option>
-          <option value="GUARAPARI">GUARAPARI</option>
-          <option value="LINHARES">LINHARES</option>
-          <option value="ITAPOÃ">ITAPOÃ</option>
-          <option value="Outro">Outro</option>
-        </select>
+      <div class="form-group" style="display:none">
+        <label for="loja">Loja</label>
+        <select id="loja"><option value="">Selecione...</option></select>
       </div>
-
       <div id="itemsContainer"></div>
-
       <button type="submit" class="btn-submit" id="btnSubmit">Enviar Inventário para Cozinha Central</button>
     </form>
   </div>
   
-  <div id="successBox">
-    <h2>Inventário Enviado! ✅</h2>
-    <p>O nível do seu estoque foi recebido com sucesso na base da Cozinha Central e o sistema calculará as necessidades de reposição automaticamente.</p>
-    <button class="btn-submit" style="margin-top:20px; background-color:#334155" onclick="location.reload()">Fazer Novo Lançamento</button>
-  </div>
+  <div id="successBox" style="display:none"></div>
 </div>
 
 <script>
-// ----- DADOS DO FORMULÁRIO -----
-const CATEGORIAS = [
-  {
-    nome: "Insumos (Pacotes/Kg/Un)",
-    itens: [
-      "Pepperoni", "Carne Hamburguer", "Bacon em cubos", "Calabresa triturada", "Carne moída", 
-      "Carne de Panela", "Cebola caramelizada", "Filé em Cubos", "Frango Desfiado", "Frango defumado", 
-      "Lombo Assado", "Mexicana", "Mini kibe", "Mistura Liquida", "Mistura para maionese", 
-      "Mistura Seca 5 kg", "Mistura Seca 15 kg", "Molho Gorgonzola", "Presunto triturado", "Chocolate Branco"
-    ]
-  },
-  {
-    nome: "Embalagens (Fardos/Caixas)",
-    itens: [
-      "Caixa 1", "Caixa 2", "Caixa 4", "Caixa 6", "Caixa 8", "Caixa 12", 
-      "Tira P", "Tira G", "Bandeja P", "Bandeja G", "Papel Bandeja", 
-      "Garra 300ml", "Garra 1 litro"
-    ]
+const FIREBASE_BASE        = "https://controle-cozinha-central-default-rtdb.firebaseio.com";
+const FIREBASE_PEDIDOS_URL = FIREBASE_BASE + "/chef_pedidos.json";
+const FIREBASE_CATALOGO_URL= FIREBASE_BASE + "/chef_pedido_catalogo.json";
+const FIREBASE_METAS_URL   = FIREBASE_BASE + "/chef_lojas_metas.json";
+const LOJAS = ["VALPARAISO","VITORIA","ITAPARICA","GUARAPARI","LINHARES","ITAPOA","Outro"];
+
+let CATEGORIAS = [];
+let METAS_LOJA = {};
+const params      = new URLSearchParams(window.location.search);
+const tipoAtual   = params.get('tipo');
+const lojaParam   = params.get('loja') || '';
+// Filtros opcionais via URL: ?lojas=ITAPARICA,ITAPOA&cats=insumos&direto=1
+const lojasFiltro = params.get('lojas') ? params.get('lojas').toUpperCase().split(',') : null;
+const catsFiltro  = params.get('cats')  ? params.get('cats').split(',')                : null;
+const direto      = params.get('direto') === '1'; // modo pedido direto (sem cálculo par-level)
+const extraQS     = (lojasFiltro ? '&lojas=' + lojasFiltro.join(',') : '')
+                  + (catsFiltro  ? '&cats='  + catsFiltro.join(',')  : '')
+                  + (direto      ? '&direto=1'                        : '');
+
+function _catalogoPadrao() {
+  return [
+    { id: 'insumos', nome: 'Recheios', icon: '🥩', itens: [
+        {nome:'Pepperoni',max:0},{nome:'Carne Hamburguer',max:0},{nome:'Bacon em cubos',max:0},
+        {nome:'Calabresa triturada',max:0},{nome:'Carne moída',max:0},{nome:'Carne de Panela',max:0},
+        {nome:'Cebola caramelizada',max:0},{nome:'Filé em Cubos',max:0},{nome:'Frango Desfiado',max:0},
+        {nome:'Frango defumado',max:0},{nome:'Lombo Assado',max:0},{nome:'Mexicana',max:0},
+        {nome:'Mini kibe',max:0},{nome:'Mistura Liquida',max:0},{nome:'Mistura para maionese',max:0},
+        {nome:'Mistura Seca 5 kg',max:0},{nome:'Mistura Seca 15 kg',max:0},{nome:'Molho Gorgonzola',max:0},
+        {nome:'Presunto triturado',max:0},{nome:'Chocolate Branco',max:0}
+      ]
+    },
+    { id: 'cozinha', nome: 'Cozinha', icon: '🧑‍🍳', itens: [
+        {nome:'Açucar 5 kg',max:2},{nome:'Alho frito KG',max:2},{nome:'Brigadeiro Caixas',max:3},
+        {nome:'Café 500 G',max:3},{nome:'Canela KG',max:2},{nome:'Creme de Leite L',max:4},
+        {nome:'Fuba KG',max:40},{nome:'Goiabada Bisnaga',max:3},{nome:'Granulado KG',max:3},
+        {nome:'Kinder ovo',max:4},{nome:'Kinder Bueno CX',max:2},{nome:'Leite Condensado CX',max:30},
+        {nome:'M&Ms KG',max:6},{nome:'Milho Latinha Fardo',max:30},{nome:'Nachos Pacote',max:8},
+        {nome:'Nuttela Balde',max:6},{nome:'Óleo Caixa',max:4},{nome:'Paçoca Caixa',max:2},
+        {nome:'Rolo de sacola',max:2},{nome:'Batata Palha Caixa',max:2},{nome:'Palmito Caixa',max:2},
+        {nome:'Molho de Tomate',max:20},{nome:'Mostarda',max:4},{nome:'Leite Ninho',max:2},
+        {nome:'MUSSARELA PÇ',max:27},{nome:'Requeijão 1,8 kg',max:18},{nome:'Cheddar 1,2 kg',max:6},
+        {nome:'Parmêsão Ralado Kg',max:2},{nome:'GORGONZOLA Peça',max:1},{nome:'OREGANO Pacote',max:2},
+        {nome:'Cream Cheese 1 kg',max:6},{nome:'Lombo Canadense',max:6},{nome:'Sacolina de chupchup',max:4},
+        {nome:'Bombom Ouro Branco',max:4},{nome:'Chocolate branco',max:2},{nome:'Papel Lanche UN',max:2},
+        {nome:'Doce de Leite Caixa',max:3},{nome:'Alho Poro',max:10},{nome:'Trigo kg',max:300},
+        {nome:'Detergente Un',max:20},{nome:'Cloro Galão',max:4},{nome:'Bombril Pacote',max:2},
+        {nome:'Esponja fina pacote',max:2},{nome:'Esponja grossa pct',max:2},{nome:'Limpador Forno',max:2},
+        {nome:'Luva Preta Caixa',max:4},{nome:'Touca Pacote',max:4},{nome:'Ovo de Galinha',max:3}
+      ]
+    },
+    { id: 'frenteloja', nome: 'Frente de Loja', icon: '🏪', itens: [
+        {nome:'Caixa 1',max:0},{nome:'Caixa 2',max:0},{nome:'Caixa 4',max:0},{nome:'Caixa 6',max:0},
+        {nome:'Caixa 8',max:0},{nome:'Caixa 12',max:0},{nome:'Tira P',max:0},{nome:'Tira G',max:0},
+        {nome:'Bandeja P',max:0},{nome:'Bandeja G',max:0},{nome:'Papel Bandeja',max:0},
+        {nome:'Garra 300ml',max:0},{nome:'Garra 1 litro',max:0},
+        {nome:'Barbecue 3,5 L',max:4},{nome:'Copinho Maionese CX',max:2},{nome:'Papel Higienico',max:2},
+        {nome:'Coca 1,5 L',max:16},{nome:'Coca 1,5 l Zero',max:16},{nome:'Coca Lata',max:6},
+        {nome:'Coca Lata Zero',max:6},{nome:'Alcool Liquido',max:10},{nome:'Colherzinha Caixa',max:2},
+        {nome:'Sacola Camiseta 38x48',max:2},{nome:'Canudo',max:2},{nome:'Ketchup sache',max:2},
+        {nome:'Barbecue sache',max:2},{nome:'Guardanapo',max:3},{nome:'Prato Descartavel',max:2},
+        {nome:'KETCHUP 3,5 L',max:4},{nome:'Saco Lixo 100L Fardo',max:2},{nome:'Saco Lixo 200 l Fardo',max:2},
+        {nome:'Papel para maos',max:3},{nome:'Guarana 1,5 L',max:6},{nome:'Agua sem gas',max:15},
+        {nome:'Agua com gas',max:15},{nome:'H2O Limao',max:2},{nome:'H2O Limoneto',max:2},
+        {nome:'Suco de Uva Dellvale',max:6}
+      ]
+    }
+  ];
+}
+
+async function init() {
+  try {
+    const [resCat, resProd] = await Promise.all([
+      fetch(FIREBASE_CATALOGO_URL),
+      fetch(FIREBASE_BASE + '/chef_produtos.json')
+    ]);
+    const dataCat  = await resCat.json();
+    const dataProd = await resProd.json();
+
+    if (dataCat) {
+      CATEGORIAS = Array.isArray(dataCat) ? dataCat : Object.values(dataCat);
+    }
+
+    // Deriva Recheios dos produtos cadastrados com categoria "Recheios"
+    if (dataProd) {
+      const prods = Object.values(dataProd).filter(p => p && p.categoria === 'Recheios');
+      if (prods.length > 0) {
+        prods.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+        const recheiosCat = {
+          id: 'insumos', nome: 'Recheios', icon: '🥩',
+          itens: prods.map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0), fornecedor: p.fornecedor || '' }))
+        };
+        const idx = CATEGORIAS.findIndex(c => c.id === 'insumos');
+        if (idx >= 0) CATEGORIAS[idx] = recheiosCat;
+        else CATEGORIAS.unshift(recheiosCat);
+      }
+    }
+  } catch (e) { console.warn('Erro ao carregar dados.'); }
+
+  // Fallback 1: localStorage
+  if (!CATEGORIAS.length) {
+    try {
+      const local = JSON.parse(localStorage.getItem('chef_pedido_catalogo') || '[]');
+      if (Array.isArray(local) && local.length) CATEGORIAS = local;
+    } catch(e) {}
   }
-];
 
-// ----- MONTAGEM DO HTML -----
-const container = document.getElementById('itemsContainer');
-CATEGORIAS.forEach(cat => {
-  const sec = document.createElement('div');
-  sec.innerHTML = `<h3 class="section-title">${cat.nome}</h3>`;
-  const grid = document.createElement('div');
-  grid.className = 'item-grid';
-  
-  cat.itens.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'item-card';
-    card.innerHTML = `
-      <label>${item}</label>
-      <input type="number" min="0" step="1" name="item_${item}" placeholder="0" />
+  // Fallback 2: catálogo embutido
+  if (!CATEGORIAS.length) CATEGORIAS = _catalogoPadrao();
+
+  // Aplica filtro de categorias se informado na URL
+  if (catsFiltro) CATEGORIAS = CATEGORIAS.filter(c => catsFiltro.includes(c.id));
+
+  if (lojaParam) {
+    if (!direto) await carregarMetasLoja(lojaParam); // par-level não é usado no modo direto
+    const sel = document.getElementById('loja');
+    if (sel) {
+      sel.innerHTML = `<option value="${lojaParam}">${lojaParam}</option>`;
+      sel.value = lojaParam;
+    }
+  }
+  render();
+}
+
+async function carregarMetasLoja(loja) {
+  try {
+    const res = await fetch(FIREBASE_METAS_URL);
+    const data = await res.json();
+    if (data) {
+      const entrada = Object.values(data).find(m => m.loja === loja);
+      METAS_LOJA = entrada ? (entrada.itens || {}) : {};
+    }
+  } catch (e) { METAS_LOJA = {}; }
+}
+
+function render() {
+  const container = document.getElementById('formContent');
+  if (!tipoAtual) {
+    document.getElementById('pedidoForm').style.display = 'none';
+    const lojasVisiveis = lojasFiltro ? LOJAS.filter(l => lojasFiltro.includes(l.toUpperCase())) : LOJAS;
+    const lojasOpts = lojasVisiveis.map(l => `<option value="${l}"${l === lojaParam ? ' selected' : ''}>${l}</option>`).join('');
+    const botoes = CATEGORIAS.map(cat => `
+      <a href="?loja=${encodeURIComponent(lojaParam)}&tipo=${cat.id}${extraQS}" style="text-decoration:none" id="btn_${cat.id}"
+         onclick="const l=document.getElementById('selLojaLanding').value; if(!l){event.preventDefault();alert('Selecione a loja!');}else{this.href='?loja='+encodeURIComponent(l)+'&tipo=${cat.id}${extraQS}';}">
+        <div style="background:var(--bg-card); border: 2px solid var(--border); padding:24px; border-radius:12px; text-align:center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); cursor:pointer;">
+           <div style="font-size:2.5rem; margin-bottom:8px;">${cat.icon}</div>
+           <h3 style="color:var(--text-main); font-size:1.3rem">${cat.nome}</h3>
+           <p style="color:var(--text-muted); margin-top:4px; font-size:.85rem">${cat.itens ? cat.itens.length : 0} itens</p>
+        </div>
+      </a>
+    `).join('');
+
+    container.innerHTML = `
+      <div style="margin-bottom:28px;">
+        <label for="selLojaLanding" style="display:block;font-weight:700;margin-bottom:8px;font-size:1rem">1. Qual é a sua loja?</label>
+        <select id="selLojaLanding" style="width:100%;padding:12px;font-size:1rem;border-radius:8px;border:2px solid var(--border);font-family:inherit" onchange="atualizarLinksCategoria(this.value)">
+          <option value="">— Selecione a unidade —</option>
+          ${lojasOpts}
+        </select>
+      </div>
+      <div id="avisoLoja" style="display:${lojaParam?'none':'block'};background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.88rem;color:#854d0e">
+        ⚠️ Selecione a loja para ver os limites máximos.
+      </div>
+      <label style="display:block;font-weight:700;margin-bottom:12px;font-size:1rem">2. O que você deseja inventariar agora?</label>
+      <div style="display:flex; flex-direction:column; gap:16px;">${botoes}</div>
     `;
-    grid.appendChild(card);
+  } else {
+    document.getElementById('pedidoForm').style.display = 'block';
+    const itemsDiv = document.getElementById('itemsContainer');
+    const cat = CATEGORIAS.find(c => c.id === tipoAtual);
+    if (!cat) {
+      itemsDiv.innerHTML = `<div style="padding:30px;text-align:center;color:#ef4444">Categoria não encontrada. <a href="pedido.html">Voltar</a></div>`;
+      return;
+    }
+    document.querySelector('.header p').innerHTML = direto
+      ? `<strong>Pedido de ${cat.nome}</strong> — ${lojaParam || ''}<br><small>Digite a quantidade que deseja <strong>RECEBER</strong>. Deixe em branco ou 0 para não receber.</small>`
+      : `<strong>Inventário de ${cat.nome}</strong> — ${lojaParam || ''}<br><small>Preencha as quantidades ATUAIS na loja</small>`;
+
+    let html = `<h3 class="section-title">${cat.icon} ${cat.nome}</h3><div class="item-grid">`;
+
+    // Filtra por loja: itens sem lojas definidas aparecem para todas; com lojas, só para as marcadas
+    const lojaAtualUpper = (lojaParam || '').toUpperCase();
+    const itensOrdenados = [...cat.itens]
+      .filter(item => {
+        if (cat.id === 'insumos') return true;
+        const lojas = (typeof item === 'object' ? item.lojas : null) || [];
+        if (!lojas.length) return true;
+        return lojas.some(l => l.toUpperCase() === lojaAtualUpper);
+      })
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+
+    itensOrdenados.forEach(item => {
+      const nome = typeof item === 'object' ? item.nome : item;
+      let subLabel = '';
+      if (!direto) {
+        const maxLoja   = METAS_LOJA[nome];
+        const maxExibir = (maxLoja !== undefined) ? maxLoja : (item.max || 0);
+        subLabel = maxExibir > 0
+          ? `<span style="font-size:0.72rem;color:#0ea5e9;font-weight:600;display:block;margin-top:2px;">Máx: ${maxExibir}</span>`
+          : `<span style="font-size:0.72rem;color:#94a3b8;display:block;margin-top:2px;">Sem limite</span>`;
+      }
+      const inputAttr = direto ? 'placeholder="0"' : 'required placeholder="0"';
+      html += `<div class="item-card"><label>${nome}${subLabel}</label><input type="text" inputmode="decimal" ${inputAttr} name="item_${nome}" style="border:2px solid var(--border);" oninput="this.style.borderColor='#10b981'" /></div>`;
+    });
+    html += `</div>`;
+    itemsDiv.innerHTML = html;
+
+    const aviso = document.createElement('div');
+    aviso.style.cssText = 'background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.88rem;color:#854d0e;display:flex;gap:8px;align-items:center';
+    aviso.innerHTML = direto
+      ? '<span style="font-size:1.1rem">📦</span> <span>Digite a quantidade de cada item que deseja receber. Itens com <strong>0 ou em branco</strong> não serão incluídos no pedido.</span>'
+      : '<span style="font-size:1.1rem">⚠️</span> <span>Todos os campos são <strong>obrigatórios</strong>. Preencha com <strong>0 (zero)</strong> os itens que a loja não possui.</span>';
+    itemsDiv.insertBefore(aviso, itemsDiv.firstChild);
+  }
+}
+
+function atualizarLinksCategoria(loja) {
+  document.getElementById('avisoLoja').style.display = loja ? 'none' : 'block';
+  CATEGORIAS.forEach(cat => {
+    const a = document.getElementById('btn_' + cat.id);
+    if (a) a.href = loja ? `?loja=${encodeURIComponent(loja)}&tipo=${cat.id}${extraQS}` : '#';
   });
-  
-  sec.appendChild(grid);
-  container.appendChild(sec);
-});
+}
 
-// ----- INTEGRAÇÃO FIREBASE -----
-const FIREBASE_URL = "https://controle-cozinha-central-default-rtdb.firebaseio.com/chef_pedidos.json";
+init();
 
-document.getElementById('pedidoForm').addEventListener('submit', async (e) => {
+document.getElementById('pedidoForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('btnSubmit');
-  
-  // Coletar dados
   const loja = document.getElementById('loja').value;
-  if(!loja) return alert("Selecione a Loja!");
-  
+  if (!loja) return alert("Selecione a Loja!");
   const inputs = document.querySelectorAll('.item-card input');
-  const itensPedidos = [];
-  
-  inputs.forEach(inp => {
-    const qty = parseInt(inp.value);
-    if(qty > 0) {
-      const nome = inp.name.replace('item_', '');
-      itensPedidos.push({
-        nome: nome,
-        quantidade: qty,
-        separado: 0 // Usado no módulo de separação para tracking
-      });
+
+  if (!direto) {
+    // Modo inventário: todos os campos obrigatórios
+    const vazios = [...inputs].filter(inp => inp.value === '' || inp.value === null);
+    if (vazios.length > 0) {
+      vazios.forEach(inp => inp.style.borderColor = '#ef4444');
+      vazios[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      vazios[0].focus();
+      return alert(`⚠️ ${vazios.length} campo(s) não preenchido(s)!\n\nDigite 0 (zero) para itens que a loja não possui.\nTodos os campos devem ser preenchidos para enviar.`);
     }
-  });
-  
-  if(itensPedidos.length === 0) {
-    return alert("Você precisa pedir pelo menos 1 item para enviar.");
   }
-  
-  // Objeto de Pedido
-  const pedidoData = {
-    id: 'ped' + Date.now().toString(),
-    loja: loja,
-    data: new Date().toISOString(),
-    status: 'pendente', // pendente, separacao, finalizado
-    itens: itensPedidos,
-    solicitante: 'Gerente da Loja'
-  };
-  
-  // Enviar
+
+  const itensPedidos = [];
+  inputs.forEach(inp => {
+    const nome = inp.name.replace('item_', '');
+    const qty  = parseFloat((inp.value || '0').replace(',', '.')) || 0;
+    itensPedidos.push({ nome, quantidade: qty, separado: 0 });
+  });
+  const pedidoData = { id: 'ped' + Date.now().toString(), loja, data: new Date().toISOString(), status: 'pendente', itens: itensPedidos, solicitante: 'Gerente', tipoPedido: direto ? 'direto' : 'inventario' };
   try {
     btn.disabled = true;
     btn.textContent = 'Enviando...';
-    
-    const res = await fetch(FIREBASE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pedidoData)
-    });
-    
-    if(!res.ok) throw new Error("Falha na rede ao salvar no Firebase.");
-    
-    // Sucesso
-    document.getElementById('formContent').style.display = 'none';
-    document.getElementById('successBox').style.display = 'block';
-    
-  } catch(err) {
-    console.error(err);
-    alert("Erro ao enviar pedido! Verifique a internet e tente novamente.");
-    btn.disabled = false;
-    btn.textContent = 'Enviar Pedido para Cozinha Central';
-  }
+    await fetch(FIREBASE_PEDIDOS_URL, { method: 'POST', body: JSON.stringify(pedidoData) });
+    window.location.href = 'pedido.html?loja=' + encodeURIComponent(loja) + extraQS;
+  } catch (err) { alert("Erro ao enviar!"); btn.disabled = false; btn.textContent = 'Enviar'; }
 });
 </script>
 </body>

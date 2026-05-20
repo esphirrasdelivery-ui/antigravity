@@ -104,7 +104,7 @@ window.EtiquetasPage = {
     // Formatadores locais para aparecer bonito DD/MM/YYYY
     const brFormat = (strDate) => {
         const parts = strDate.split('-');
-        return \`\${parts[2]}/\${parts[1]}/\${parts[0]}\`;
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
     };
 
     const fabFormat = brFormat(dtFabOrig);
@@ -186,7 +186,7 @@ window.EtiquetasPage = {
                 document.getElementById('avisoTela').style.marginTop = '0px';
                 window.print();
             }, 500);
-          </script>
+          <\/script>
         </body>
       </html>
     `);

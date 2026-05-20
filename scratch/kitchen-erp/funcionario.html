@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cadastro de Funcionário — Esphirra's Delivery</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+      padding: 24px 16px 60px;
+    }
+    .container { max-width: 680px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 32px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; color: #f0a30a; }
+    .header p  { color: #8b949e; margin-top: 4px; }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #f0a30a;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #21262d;
+    }
+    .welcome-card { background: linear-gradient(135deg, #161b22, #1c2333); }
+    .welcome-card h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .welcome-card p  { color: #8b949e; line-height: 1.6; }
+    .badge-cargo {
+      display: inline-block;
+      background: rgba(240,163,10,.15);
+      color: #f0a30a;
+      border: 1px solid rgba(240,163,10,.3);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: .85rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .form-row .form-group { flex: 1; min-width: 200px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: .82rem;
+      font-weight: 600;
+      color: #8b949e;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .form-group label .req { color: #f0a30a; margin-left: 2px; }
+    input[type=text], input[type=email], input[type=tel], input[type=date],
+    input[type=number], select, textarea {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e6edf3;
+      font-size: .92rem;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    input:focus, select:focus { border-color: #f0a30a; }
+    .cep-row { display: flex; gap: 8px; }
+    .cep-row input { flex: 1; }
+    .field-error { display: block; font-size: .78rem; color: #f87171; margin-top: 4px; min-height: 16px; }
+
+    /* Radio group */
+    .radio-group { display: flex; gap: 20px; flex-wrap: wrap; }
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: .92rem;
+      color: #e6edf3;
+      padding: 10px 18px;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      transition: border-color .2s, background .2s;
+    }
+    .radio-label:has(input:checked) {
+      border-color: #f0a30a;
+      background: rgba(240,163,10,.08);
+    }
+    .radio-label input[type=radio] { accent-color: #f0a30a; width: 16px; height: 16px; }
+
+    /* Upload */
+    .upload-box {
+      border: 2px dashed #30363d;
+      border-radius: 10px;
+      padding: 20px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .upload-box:hover { border-color: #f0a30a; background: rgba(240,163,10,.04); }
+    .upload-box.has-file { border-color: #10b981; border-style: solid; background: rgba(16,185,129,.05); }
+    .upload-box input[type=file] {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      opacity: 0; cursor: pointer;
+    }
+    .upload-icon { font-size: 1.8rem; margin-bottom: 6px; }
+    .upload-label { font-size: .85rem; color: #8b949e; }
+    .upload-label strong { color: #f0a30a; }
+    .upload-preview {
+      display: none;
+      margin-top: 12px;
+      align-items: center;
+      gap: 12px;
+    }
+    .upload-preview.visible { display: flex; }
+    .upload-preview img {
+      width: 60px; height: 60px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+    }
+    .upload-preview .pdf-icon {
+      width: 60px; height: 60px;
+      background: rgba(239,68,68,.15);
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+    }
+    .upload-preview .file-info { flex: 1; text-align: left; }
+    .upload-preview .file-name { font-size: .82rem; font-weight: 600; word-break: break-all; }
+    .upload-preview .file-size { font-size: .75rem; color: #8b949e; margin-top: 2px; }
+    .upload-preview .btn-remover {
+      background: none; border: none; color: #f87171;
+      cursor: pointer; font-size: 1.1rem; padding: 4px;
+      flex-shrink: 0;
+    }
+    .upload-required-msg { font-size: .75rem; color: #f87171; margin-top: 6px; display: none; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 10px 18px; border: none; border-radius: 8px;
+      font-size: .88rem; font-weight: 600; cursor: pointer; transition: opacity .15s;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { opacity: .85; }
+    .btn-primary  { background: #f0a30a; color: #0d1117; }
+    .btn-secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+    .btn-sm { padding: 6px 12px; font-size: .8rem; }
+    .btn-block { width: 100%; padding: 14px; font-size: 1rem; margin-top: 8px; }
+
+    /* States */
+    .state-card { text-align: center; padding: 48px 24px; }
+    .state-card .icon { font-size: 3rem; margin-bottom: 16px; }
+    .state-card h2 { font-size: 1.3rem; margin-bottom: 8px; }
+    .state-card p  { color: #8b949e; line-height: 1.6; }
+
+    /* Foto */
+    .foto-area { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+    .foto-area video, .foto-area canvas { display: none; border-radius: 10px; max-width: 280px; width: 100%; background: #000; }
+    .foto-area img#fotoPreview { display: none; border-radius: 10px; max-width: 160px; border: 2px solid #30363d; }
+    .foto-hint { font-size: .82rem; color: #8b949e; line-height: 1.5; }
+
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #21262d;
+      border-top-color: #f0a30a; border-radius: 50%;
+      animation: spin .7s linear infinite; margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 480px) { .form-row .form-group { min-width: 100%; } }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Esphirra's Delivery</h1>
+    <p>Cadastro de Funcionário — Cozinha Central</p>
+  </div>
+
+  <!-- Loading -->
+  <div id="stateLoading" class="card state-card">
+    <div class="spinner"></div>
+    <p>Validando convite...</p>
+  </div>
+
+  <!-- Error -->
+  <div id="stateError" class="card state-card" style="display:none">
+    <div class="icon">❌</div>
+    <h2>Convite inválido</h2>
+    <p id="errorMsg">Link inválido ou expirado.</p>
+  </div>
+
+  <!-- Success -->
+  <div id="stateSuccess" class="card state-card" style="display:none">
+    <div class="icon">✅</div>
+    <h2>Cadastro realizado!</h2>
+    <p>Seus dados foram enviados com sucesso.<br>A equipe de RH vai confirmar seu cadastro em breve.</p>
+  </div>
+
+  <!-- Form -->
+  <form id="form" style="display:none" onsubmit="return false" autocomplete="off">
+    <input type="hidden" id="hToken" />
+    <input type="hidden" id="hCodigo" />
+    <input type="hidden" id="hFoto" />
+    <input type="hidden" id="hDocResidencia" />
+    <input type="hidden" id="hDocAdmissional" />
+    <input type="hidden" id="hDocCarteira" />
+    <input type="hidden" id="hDocCertidao" />
+
+    <!-- Welcome -->
+    <div class="card welcome-card">
+      <h2>Olá, <span id="nomeConvite">—</span>!</h2>
+      <p>Preencha seus dados abaixo para concluir seu cadastro.</p>
+      <div class="badge-cargo" id="cargoConvite">—</div>
+    </div>
+
+    <!-- Dados Pessoais -->
+    <div class="card">
+      <h3>Dados Pessoais</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nome completo <span class="req">*</span></label>
+          <input type="text" id="fNome" placeholder="Seu nome completo" />
+        </div>
+        <div class="form-group" style="flex:0 0 180px;min-width:160px">
+          <label>CPF <span class="req">*</span></label>
+          <input type="text" id="fCpf" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" />
+          <span class="field-error" id="errCpf"></span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>RG</label>
+          <input type="text" id="fRg" placeholder="0000000" />
+        </div>
+        <div class="form-group">
+          <label>Data de nascimento <span class="req">*</span></label>
+          <input type="date" id="fNasc" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Telefone / WhatsApp <span class="req">*</span></label>
+          <input type="tel" id="fTel" placeholder="(00) 00000-0000" maxlength="15" inputmode="numeric" />
+        </div>
+        <div class="form-group">
+          <label>Estado civil</label>
+          <select id="fEstadoCivil">
+            <option value="">Selecione...</option>
+            <option>Solteiro(a)</option>
+            <option>Casado(a)</option>
+            <option>Divorciado(a)</option>
+            <option>Viúvo(a)</option>
+            <option>União estável</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Endereço -->
+    <div class="card">
+      <h3>Endereço</h3>
+      <div class="form-row">
+        <div class="form-group" style="flex:0 0 200px;min-width:160px">
+          <label>CEP <span class="req">*</span></label>
+          <div class="cep-row">
+            <input type="text" id="fCep" placeholder="00000-000" maxlength="9" inputmode="numeric" />
+            <button type="button" class="btn btn-secondary btn-sm" onclick="buscarCep()">Buscar</button>
+          </div>
+        </div>
+        <div class="form-group" style="flex:1;min-width:220px">
+          <label>Logradouro <span class="req">*</span></label>
+          <input type="text" id="fLogradouro" placeholder="Rua, Avenida, Travessa..." />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:0 0 120px;min-width:100px">
+          <label>Número</label>
+          <input type="text" id="fNumero" placeholder="123" />
+        </div>
+        <div class="form-group">
+          <label>Complemento</label>
+          <input type="text" id="fComplemento" placeholder="Apto, Bloco..." />
+        </div>
+        <div class="form-group">
+          <label>Bairro</label>
+          <input type="text" id="fBairro" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label>Cidade</label>
+          <input type="text" id="fCidade" />
+        </div>
+        <div class="form-group" style="flex:0 0 80px;min-width:70px">
+          <label>UF</label>
+          <input type="text" id="fEstado" maxlength="2" placeholder="ES" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Dados Bancários -->
+    <div class="card">
+      <h3>Dados Bancários</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Banco</label>
+          <input type="text" id="fBanco" placeholder="Ex: Nubank, Caixa, Bradesco..." />
+        </div>
+        <div class="form-group">
+          <label>Chave PIX</label>
+          <input type="text" id="fPix" placeholder="CPF, telefone, email ou chave aleatória" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Filhos -->
+    <div class="card">
+      <h3>Filhos</h3>
+      <div class="form-group">
+        <label>Possui filhos menores de 14 anos? <span class="req">*</span></label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="filhos" value="nao" onchange="toggleCertidao()" checked /> Não
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="filhos" value="sim" onchange="toggleCertidao()" /> Sim
+          </label>
+        </div>
+      </div>
+      <div id="grpCertidao" style="display:none">
+        <div class="form-group" style="margin-bottom:0">
+          <label>Certidão de Nascimento <span class="req">*</span></label>
+          <div class="upload-box" id="boxCertidao" onclick="document.getElementById('fileCertidao').click()">
+            <input type="file" id="fileCertidao" accept="image/*,application/pdf" onclick="event.stopPropagation()" onchange="processarArquivo(this,'hDocCertidao','previewCertidao','infoCertidao','boxCertidao','msgCertidao')" />
+            <div class="upload-icon">📋</div>
+            <div class="upload-label">Foto ou PDF da certidão<br><strong>Clique para selecionar</strong></div>
+          </div>
+          <div class="upload-preview" id="previewCertidao">
+            <div class="pdf-icon" id="iconPdfCertidao" style="display:none">📄</div>
+            <img id="imgPrevCertidao" style="display:none" />
+            <div class="file-info">
+              <div class="file-name" id="infoCertidao"></div>
+              <div class="file-size" id="sizeCertidao"></div>
+            </div>
+            <button type="button" class="btn-remover" onclick="removerArquivo('hDocCertidao','previewCertidao','fileCertidao','boxCertidao')" title="Remover">✕</button>
+          </div>
+          <div class="upload-required-msg" id="msgCertidao">Obrigatório anexar a certidão de nascimento.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Documentos -->
+    <div class="card">
+      <h3>Documentos</h3>
+      <p style="font-size:.82rem;color:#8b949e;margin-bottom:20px">Envie foto ou PDF de cada documento. Tamanho máximo: 8 MB por arquivo.</p>
+
+      <!-- Comprovante de Residência -->
+      <div class="form-group">
+        <label>Comprovante de Residência <span class="req">*</span></label>
+        <div class="upload-box" id="boxResidencia" onclick="document.getElementById('fileResidencia').click()">
+          <input type="file" id="fileResidencia" accept="image/*,application/pdf" onclick="event.stopPropagation()" onchange="processarArquivo(this,'hDocResidencia','previewResidencia','infoResidencia','boxResidencia','msgResidencia')" />
+          <div class="upload-icon">🏠</div>
+          <div class="upload-label">Conta de luz, água ou telefone<br><strong>Clique para selecionar</strong></div>
+        </div>
+        <div class="upload-preview" id="previewResidencia">
+          <div class="pdf-icon" id="iconPdfResidencia" style="display:none">📄</div>
+          <img id="imgPrevResidencia" style="display:none" />
+          <div class="file-info">
+            <div class="file-name" id="infoResidencia"></div>
+            <div class="file-size" id="sizeResidencia"></div>
+          </div>
+          <button type="button" class="btn-remover" onclick="removerArquivo('hDocResidencia','previewResidencia','fileResidencia','boxResidencia')" title="Remover">✕</button>
+        </div>
+        <div class="upload-required-msg" id="msgResidencia">Obrigatório anexar comprovante de residência.</div>
+      </div>
+
+      <!-- Exame Admissional -->
+      <div class="form-group">
+        <label>Exame Admissional <span class="req">*</span></label>
+        <div class="upload-box" id="boxAdmissional" onclick="document.getElementById('fileAdmissional').click()">
+          <input type="file" id="fileAdmissional" accept="image/*,application/pdf" onclick="event.stopPropagation()" onchange="processarArquivo(this,'hDocAdmissional','previewAdmissional','infoAdmissional','boxAdmissional','msgAdmissional')" />
+          <div class="upload-icon">🏥</div>
+          <div class="upload-label">Resultado do exame médico admissional<br><strong>Clique para selecionar</strong></div>
+        </div>
+        <div class="upload-preview" id="previewAdmissional">
+          <div class="pdf-icon" id="iconPdfAdmissional" style="display:none">📄</div>
+          <img id="imgPrevAdmissional" style="display:none" />
+          <div class="file-info">
+            <div class="file-name" id="infoAdmissional"></div>
+            <div class="file-size" id="sizeAdmissional"></div>
+          </div>
+          <button type="button" class="btn-remover" onclick="removerArquivo('hDocAdmissional','previewAdmissional','fileAdmissional','boxAdmissional')" title="Remover">✕</button>
+        </div>
+        <div class="upload-required-msg" id="msgAdmissional">Obrigatório anexar o exame admissional.</div>
+      </div>
+
+      <!-- Carteira de Trabalho -->
+      <div class="form-group" style="margin-bottom:0">
+        <label>Carteira de Trabalho <span class="req">*</span></label>
+        <div class="upload-box" id="boxCarteira" onclick="document.getElementById('fileCarteira').click()">
+          <input type="file" id="fileCarteira" accept="image/*,application/pdf" onclick="event.stopPropagation()" onchange="processarArquivo(this,'hDocCarteira','previewCarteira','infoCarteira','boxCarteira','msgCarteira')" />
+          <div class="upload-icon">📒</div>
+          <div class="upload-label">Foto da página com dados pessoais<br><strong>Clique para selecionar</strong></div>
+        </div>
+        <div class="upload-preview" id="previewCarteira">
+          <div class="pdf-icon" id="iconPdfCarteira" style="display:none">📄</div>
+          <img id="imgPrevCarteira" style="display:none" />
+          <div class="file-info">
+            <div class="file-name" id="infoCarteira"></div>
+            <div class="file-size" id="sizeCarteira"></div>
+          </div>
+          <button type="button" class="btn-remover" onclick="removerArquivo('hDocCarteira','previewCarteira','fileCarteira','boxCarteira')" title="Remover">✕</button>
+        </div>
+        <div class="upload-required-msg" id="msgCarteira">Obrigatório anexar a carteira de trabalho.</div>
+      </div>
+    </div>
+
+    <!-- Foto Selfie -->
+    <div class="card">
+      <h3>Foto (Selfie)</h3>
+      <div class="foto-area">
+        <p class="foto-hint">Tire uma selfie para identificação. Certifique-se de que seu rosto esteja bem visível.</p>
+        <video id="video" playsinline></video>
+        <canvas id="canvas"></canvas>
+        <img id="fotoPreview" alt="Foto capturada" />
+        <div id="btnsFoto">
+          <button type="button" class="btn btn-secondary" onclick="abrirCamera()">📷 Tirar Selfie</button>
+        </div>
+        <div id="btnsCamera" style="display:none">
+          <button type="button" class="btn btn-primary" onclick="capturarFoto()">✅ Capturar foto</button>
+          <button type="button" class="btn btn-secondary" style="margin-left:8px" onclick="fecharCamera()">Cancelar</button>
+        </div>
+        <div id="btnsRefazer" style="display:none">
+          <button type="button" class="btn btn-secondary" onclick="refazerFoto()">🔄 Refazer foto</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="btn btn-primary btn-block" id="btnEnviar" onclick="enviarCadastro()">
+      Concluir Cadastro
+    </button>
+  </form>
+</div>
+
+<script>
+  const FIREBASE_URL = 'https://controle-cozinha-central-default-rtdb.firebaseio.com';
+  let conviteData = null;
+  let videoStream = null;
+
+  // ── INIT ──────────────────────────────────────────────────────────────────
+  (async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('t');
+    if (!token) { showError('Link inválido. Solicite um novo convite ao RH.'); return; }
+    try {
+      const resp   = await fetch(FIREBASE_URL + '/chef_convites/' + token + '.json');
+      const convite = await resp.json();
+      if (!convite || typeof convite !== 'object') { showError('Convite não encontrado. Solicite um novo link ao RH.'); return; }
+      if (convite.status === 'usado')     { showError('Este convite já foi utilizado. Caso precise de ajuda, fale com o RH.'); return; }
+      if (convite.status === 'cancelado') { showError('Este convite foi cancelado. Entre em contato com o RH.'); return; }
+      conviteData = convite;
+      document.getElementById('hToken').value  = token;
+      document.getElementById('hCodigo').value = convite.codigo || '';
+      document.getElementById('nomeConvite').textContent  = convite.nome || 'Funcionário';
+      document.getElementById('cargoConvite').textContent = convite.cargo || '';
+      document.getElementById('fNome').value = convite.nome || '';
+      document.getElementById('stateLoading').style.display = 'none';
+      document.getElementById('form').style.display = 'block';
+      setupMascaras();
+    } catch { showError('Erro ao validar convite. Verifique sua conexão e tente novamente.'); }
+  })();
+
+  function showError(msg) {
+    document.getElementById('stateLoading').style.display = 'none';
+    document.getElementById('errorMsg').textContent = msg;
+    document.getElementById('stateError').style.display = 'block';
+  }
+
+  // ── MÁSCARAS ──────────────────────────────────────────────────────────────
+  function setupMascaras() {
+    document.getElementById('fCpf').addEventListener('input', function(e) {
+      let v = e.target.value.replace(/\D/g,'').slice(0,11);
+      v = v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+      e.target.value = v;
+    });
+    document.getElementById('fTel').addEventListener('input', function(e) {
+      let v = e.target.value.replace(/\D/g,'').slice(0,11);
+      v = v.replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d{4})$/,'$1-$2');
+      e.target.value = v;
+    });
+    document.getElementById('fCep').addEventListener('input', function(e) {
+      let v = e.target.value.replace(/\D/g,'').slice(0,8);
+      if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5);
+      e.target.value = v;
+    });
+  }
+
+  // ── CPF ───────────────────────────────────────────────────────────────────
+  function validarCPF(cpf) {
+    cpf = cpf.replace(/\D/g,'');
+    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+    let s = 0, r;
+    for (let i = 1; i <= 9; i++) s += parseInt(cpf[i-1]) * (11-i);
+    r = (s*10)%11; if (r===10||r===11) r=0; if (r!==parseInt(cpf[9])) return false;
+    s = 0;
+    for (let i = 1; i <= 10; i++) s += parseInt(cpf[i-1]) * (12-i);
+    r = (s*10)%11; if (r===10||r===11) r=0;
+    return r === parseInt(cpf[10]);
+  }
+
+  // ── CEP ───────────────────────────────────────────────────────────────────
+  async function buscarCep() {
+    const cep = document.getElementById('fCep').value.replace(/\D/g,'');
+    if (cep.length !== 8) { alert('CEP deve ter 8 dígitos.'); return; }
+    try {
+      const d = await (await fetch('https://viacep.com.br/ws/' + cep + '/json/')).json();
+      if (d.erro) { alert('CEP não encontrado.'); return; }
+      document.getElementById('fLogradouro').value = d.logradouro || '';
+      document.getElementById('fBairro').value     = d.bairro     || '';
+      document.getElementById('fCidade').value     = d.localidade || '';
+      document.getElementById('fEstado').value     = d.uf         || '';
+      document.getElementById('fNumero').focus();
+    } catch { alert('Erro ao buscar CEP. Verifique sua conexão.'); }
+  }
+
+  // ── FILHOS ────────────────────────────────────────────────────────────────
+  function toggleCertidao() {
+    const sim = document.querySelector('input[name=filhos]:checked').value === 'sim';
+    document.getElementById('grpCertidao').style.display = sim ? 'block' : 'none';
+    if (!sim) {
+      document.getElementById('hDocCertidao').value = '';
+      removerArquivo('hDocCertidao','previewCertidao','fileCertidao','boxCertidao');
+    }
+  }
+
+  // ── UPLOAD DE DOCUMENTOS ──────────────────────────────────────────────────
+  async function processarArquivo(input, hiddenId, previewId, infoId, boxId, msgId) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Arquivo muito grande. O tamanho máximo é 8 MB. Tente comprimir o arquivo.');
+      input.value = '';
+      return;
+    }
+    const isPdf = file.type === 'application/pdf';
+    let base64;
+    if (isPdf) {
+      base64 = await lerBase64(file);
+    } else {
+      base64 = await comprimirImagem(file, 1400);
+    }
+    document.getElementById(hiddenId).value = base64;
+
+    // Preview
+    const preview = document.getElementById(previewId);
+    const iconPdf = document.getElementById('iconPdf' + boxId.replace('box',''));
+    const imgPrev = document.getElementById('imgPrev' + boxId.replace('box',''));
+
+    if (isPdf) {
+      if (iconPdf) { iconPdf.style.display = 'flex'; }
+      if (imgPrev) { imgPrev.style.display = 'none'; }
+    } else {
+      if (imgPrev) { imgPrev.src = base64; imgPrev.style.display = 'block'; }
+      if (iconPdf) { iconPdf.style.display = 'none'; }
+    }
+    document.getElementById(infoId).textContent = file.name;
+    document.getElementById('size' + boxId.replace('box','')).textContent = formatBytes(file.size);
+    preview.classList.add('visible');
+    document.getElementById(boxId).classList.add('has-file');
+    document.getElementById(msgId).style.display = 'none';
+  }
+
+  function removerArquivo(hiddenId, previewId, fileInputId, boxId) {
+    document.getElementById(hiddenId).value = '';
+    document.getElementById(previewId).classList.remove('visible');
+    document.getElementById(fileInputId).value = '';
+    document.getElementById(boxId).classList.remove('has-file');
+    const suffix = boxId.replace('box','');
+    const iconPdf = document.getElementById('iconPdf' + suffix);
+    const imgPrev = document.getElementById('imgPrev' + suffix);
+    if (iconPdf) iconPdf.style.display = 'none';
+    if (imgPrev) imgPrev.style.display = 'none';
+  }
+
+  function lerBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function comprimirImagem(file, maxPx) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > maxPx) { h = Math.round(h * maxPx / w); w = maxPx; }
+        if (h > maxPx) { w = Math.round(w * maxPx / h); h = maxPx; }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = url;
+    });
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  // ── CÂMERA / SELFIE ───────────────────────────────────────────────────────
+  async function abrirCamera() {
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640 } });
+      const video = document.getElementById('video');
+      video.srcObject = videoStream;
+      await video.play();
+      video.style.display = 'block';
+      document.getElementById('btnsFoto').style.display   = 'none';
+      document.getElementById('btnsCamera').style.display = 'flex';
+    } catch { alert('Não foi possível acessar a câmera. Verifique as permissões do navegador.'); }
+  }
+
+  function capturarFoto() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const MAX = 600;
+    let w = video.videoWidth, h = video.videoHeight;
+    if (w > MAX) { h = Math.round(h*MAX/w); w = MAX; }
+    if (h > MAX) { w = Math.round(w*MAX/h); h = MAX; }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    const base64 = canvas.toDataURL('image/jpeg', 0.72);
+    document.getElementById('hFoto').value = base64;
+    document.getElementById('fotoPreview').src = base64;
+    document.getElementById('fotoPreview').style.display = 'block';
+    fecharCamera(true);
+    document.getElementById('btnsRefazer').style.display = 'flex';
+  }
+
+  function fecharCamera(fotoCapturada) {
+    if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
+    const video = document.getElementById('video');
+    video.style.display = 'none'; video.srcObject = null;
+    document.getElementById('btnsCamera').style.display = 'none';
+    if (!fotoCapturada) document.getElementById('btnsFoto').style.display = 'block';
+  }
+
+  function refazerFoto() {
+    document.getElementById('hFoto').value = '';
+    document.getElementById('fotoPreview').style.display = 'none';
+    document.getElementById('btnsRefazer').style.display = 'none';
+    document.getElementById('btnsFoto').style.display    = 'block';
+  }
+
+  // ── SUBMIT ────────────────────────────────────────────────────────────────
+  async function enviarCadastro() {
+    document.getElementById('errCpf').textContent = '';
+    let ok = true;
+
+    const nome       = document.getElementById('fNome').value.trim();
+    const cpf        = document.getElementById('fCpf').value;
+    const nasc       = document.getElementById('fNasc').value;
+    const tel        = document.getElementById('fTel').value.trim();
+    const logradouro = document.getElementById('fLogradouro').value.trim();
+    const cep        = document.getElementById('fCep').value.trim();
+
+    if (!nome || !cpf || !nasc || !tel || !cep || !logradouro) {
+      alert('Preencha todos os campos obrigatórios (marcados com *).'); return;
+    }
+    if (!validarCPF(cpf)) {
+      document.getElementById('errCpf').textContent = 'CPF inválido.';
+      document.getElementById('fCpf').focus(); return;
+    }
+
+    // Validar documentos obrigatórios
+    const docs = [
+      { id: 'hDocResidencia',  msg: 'msgResidencia' },
+      { id: 'hDocAdmissional', msg: 'msgAdmissional' },
+      { id: 'hDocCarteira',    msg: 'msgCarteira' },
+    ];
+    const temFilhos = document.querySelector('input[name=filhos]:checked').value === 'sim';
+    if (temFilhos) docs.push({ id: 'hDocCertidao', msg: 'msgCertidao' });
+
+    docs.forEach(d => {
+      if (!document.getElementById(d.id).value) {
+        document.getElementById(d.msg).style.display = 'block';
+        ok = false;
+      }
+    });
+    if (!ok) { alert('Anexe todos os documentos obrigatórios antes de continuar.'); return; }
+
+    const token  = document.getElementById('hToken').value;
+    const codigo = document.getElementById('hCodigo').value || ('FUN' + Date.now().toString().slice(-3));
+
+    const funcionario = {
+      id: codigo, codigo,
+      nome, cpf: cpf.replace(/\D/g,''),
+      rg:           document.getElementById('fRg').value.trim()          || null,
+      dataNascimento: nasc,
+      telefone: tel,
+      estadoCivil:  document.getElementById('fEstadoCivil').value        || null,
+      cep, logradouro,
+      numero:       document.getElementById('fNumero').value.trim()      || null,
+      complemento:  document.getElementById('fComplemento').value.trim() || null,
+      bairro:       document.getElementById('fBairro').value.trim()      || null,
+      cidade:       document.getElementById('fCidade').value.trim()      || null,
+      estado:       document.getElementById('fEstado').value.trim()      || null,
+      banco:        document.getElementById('fBanco').value.trim() || null,
+      pix:          document.getElementById('fPix').value.trim()  || null,
+      filhosMenores14: temFilhos,
+      foto:              document.getElementById('hFoto').value           || null,
+      docResidencia:     document.getElementById('hDocResidencia').value,
+      docAdmissional:    document.getElementById('hDocAdmissional').value,
+      docCarteira:       document.getElementById('hDocCarteira').value,
+      docCertidao:       temFilhos ? document.getElementById('hDocCertidao').value : null,
+      cargo:       conviteData.cargo      || null,
+      email:       conviteData.email      || null,
+      admitidoEm:  conviteData.admitidoEm || null,
+      status:      'ativo',
+      cadastradoEm: new Date().toISOString()
+    };
+
+    const btn = document.getElementById('btnEnviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+
+    try {
+      await fetch(FIREBASE_URL + '/chef_funcionarios/' + codigo + '.json', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(funcionario)
+      });
+      await fetch(FIREBASE_URL + '/chef_convites/' + token + '.json', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'usado', cadastradoEm: funcionario.cadastradoEm })
+      });
+      document.getElementById('form').style.display = 'none';
+      document.getElementById('stateSuccess').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      btn.disabled = false; btn.textContent = 'Concluir Cadastro';
+      alert('Erro ao salvar cadastro. Verifique sua conexão e tente novamente.');
+    }
+  }
+</script>
+</body>
+</html>

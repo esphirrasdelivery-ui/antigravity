@@ -30,14 +30,16 @@ const FichasPage = {
 
   renderFichaCard(f) {
     const custo = this.calcularCusto(f);
+    const produto = f.produtoId ? DB.getProdutoPorId(f.produtoId) : null;
     return `
       <div class="card" style="cursor:default;transition:all .2s" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
-          <div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
             <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary)">${f.nome}</h3>
+            ${produto ? `<div style="font-size:.75rem;color:var(--accent);font-weight:600;margin-top:2px">📦 ${produto.nome}</div>` : ''}
             <span class="badge badge-info" style="margin-top:4px">${f.categoria||'Geral'}</span>
           </div>
-          <div style="display:flex;gap:4px">
+          <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px">
             <button class="btn btn-secondary btn-sm" onclick="FichasPage.verDetalhes('${f.id}')" title="Ver">👁️</button>
             <button class="btn btn-secondary btn-sm" onclick="FichasPage.openModal('${f.id}')" title="Editar">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="FichasPage.deletar('${f.id}')" title="Excluir">🗑️</button>
@@ -77,20 +79,96 @@ const FichasPage = {
     return { total, porPorcao: rendimento > 0 ? total / rendimento : 0 };
   },
 
+  // ── Ponto de entrada: nova ficha abre seletor de produto; edição abre form direto ──
   openModal(id = null) {
-    const ficha = id ? DB.getFichas().find(f => f.id === id) : null;
+    if (!id) {
+      this._abrirSeletorProduto();
+    } else {
+      const ficha = DB.getFichas().find(f => f.id === id);
+      this._abrirFormFicha(ficha, null);
+    }
+  },
+
+  // ── Passo 1: escolher o produto ao qual a ficha pertence ──
+  _abrirSeletorProduto() {
+    const produtos = DB.getProdutos()
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+    if (produtos.length === 0) {
+      App.showToast('Cadastre pelo menos um produto antes de criar uma ficha técnica.', 'warning');
+      return;
+    }
+
+    const itens = produtos.map(p => `
+      <div class="card" style="padding:12px;cursor:pointer;transition:border-color .15s,background .15s"
+           data-busca="${p.nome.toLowerCase()} ${(p.categoria||'').toLowerCase()}"
+           onclick="FichasPage._selecionarProdutoFicha('${p.id}')"
+           onmouseenter="this.style.borderColor='var(--accent)';this.style.background='var(--bg-hover)'"
+           onmouseleave="this.style.borderColor='var(--border)';this.style.background=''">
+        <div style="font-weight:700;font-size:.9rem;color:var(--text-primary)">${p.nome}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${p.categoria||'—'} • ${p.unidade}</div>
+      </div>
+    `).join('');
+
+    const body = `
+      <div style="margin-bottom:12px">
+        <input type="text" id="buscaProdFicha" class="input-form"
+               placeholder="🔍 Buscar produto..."
+               oninput="FichasPage._filtrarSeletor()"
+               style="width:100%" />
+      </div>
+      <div id="listaProdsFicha"
+           style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:430px;overflow-y:auto">
+        ${itens}
+      </div>
+    `;
+
+    App.openModal('Selecionar Produto para a Ficha Técnica', body, [
+      { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' }
+    ], 'modal-lg');
+  },
+
+  _filtrarSeletor() {
+    const termo = (document.getElementById('buscaProdFicha')?.value || '').toLowerCase();
+    document.querySelectorAll('#listaProdsFicha > div').forEach(el => {
+      el.style.display = el.dataset.busca.includes(termo) ? '' : 'none';
+    });
+  },
+
+  _selecionarProdutoFicha(produtoId) {
+    App.closeModal();
+    setTimeout(() => this._abrirFormFicha(null, produtoId), 150);
+  },
+
+  // ── Passo 2: formulário completo da ficha, com produto vinculado no topo ──
+  _abrirFormFicha(ficha, produtoId) {
     this.ingredientesTmp = ficha ? JSON.parse(JSON.stringify(ficha.ingredientes || [])) : [];
+
+    const pId = produtoId || ficha?.produtoId || '';
+    const produto = pId ? DB.getProdutoPorId(pId) : null;
 
     const categorias = ['Sopas', 'Proteínas', 'Acompanhamentos', 'Saladas', 'Sobremesas', 'Bebidas', 'Lanches', 'Geral'];
     const unidades = ['kg', 'g', 'L', 'ml', 'un', 'colher', 'xícara', 'pitada'];
     const produtos = DB.getProdutos();
 
     const body = `
-      <form id="formFicha" onsubmit="FichasPage.salvar(event, '${id||''}')">
+      <form id="formFicha" onsubmit="FichasPage.salvar(event, '${ficha?.id||''}')">
+
+        <div style="background:var(--bg-input);border:1px solid var(--accent);border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px">
+          <div style="font-size:1.6rem;line-height:1">📦</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Produto vinculado</div>
+            <div style="font-weight:700;font-size:1rem;color:var(--text-primary);margin-top:1px">${produto?.nome || '<em style="color:var(--text-muted);font-weight:400">Nenhum produto selecionado</em>'}</div>
+            ${produto ? `<div style="font-size:.75rem;color:var(--text-muted)">${produto.categoria||''} ${produto.unidade ? '• '+produto.unidade : ''}</div>` : ''}
+          </div>
+          ${ficha ? `<button type="button" class="btn btn-secondary btn-sm" onclick="App.closeModal();setTimeout(()=>FichasPage._abrirSeletorParaTrocar('${ficha.id}'),150)">Trocar</button>` : ''}
+          <input type="hidden" id="fProdutoId" value="${pId}" />
+        </div>
+
         <div class="form-grid">
           <div class="form-group">
             <label>Nome da Ficha *</label>
-            <input type="text" id="fNome" required placeholder="Ex: Frango ao Molho" value="${ficha?.nome||''}" />
+            <input type="text" id="fNome" required placeholder="Ex: Frango ao Molho" value="${ficha?.nome || produto?.nome || ''}" />
           </div>
           <div class="form-group">
             <label>Categoria</label>
@@ -112,7 +190,7 @@ const FichasPage = {
           </div>
         </div>
 
-        <div style="margin: 16px 0">
+        <div style="margin:16px 0">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <label style="margin:0">Ingredientes</label>
             <button type="button" class="btn btn-secondary btn-sm" onclick="FichasPage.adicionarIngrediente()">+ Adicionar</button>
@@ -138,6 +216,55 @@ const FichasPage = {
       { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' },
       { label: 'Salvar', class: 'btn-primary', action: `document.getElementById('formFicha').requestSubmit()` }
     ], 'modal-lg');
+  },
+
+  // Permite trocar o produto vinculado a uma ficha existente
+  _abrirSeletorParaTrocar(fichaId) {
+    const produtos = DB.getProdutos()
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+    const itens = produtos.map(p => `
+      <div class="card" style="padding:12px;cursor:pointer;transition:border-color .15s,background .15s"
+           data-busca="${p.nome.toLowerCase()} ${(p.categoria||'').toLowerCase()}"
+           onclick="FichasPage._trocarProdutoFicha('${fichaId}','${p.id}')"
+           onmouseenter="this.style.borderColor='var(--accent)';this.style.background='var(--bg-hover)'"
+           onmouseleave="this.style.borderColor='var(--border)';this.style.background=''">
+        <div style="font-weight:700;font-size:.9rem">${p.nome}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${p.categoria||'—'} • ${p.unidade}</div>
+      </div>
+    `).join('');
+
+    const body = `
+      <div style="margin-bottom:12px">
+        <input type="text" id="buscaProdFicha2" class="input-form"
+               placeholder="🔍 Buscar produto..."
+               oninput="FichasPage._filtrarSeletor2()"
+               style="width:100%" />
+      </div>
+      <div id="listaProdsFicha2"
+           style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:430px;overflow-y:auto">
+        ${itens}
+      </div>
+    `;
+
+    App.openModal('Trocar Produto Vinculado', body, [
+      { label: 'Cancelar', class: 'btn-secondary', action: `App.closeModal();setTimeout(()=>FichasPage.openModal('${fichaId}'),150)` }
+    ], 'modal-lg');
+  },
+
+  _filtrarSeletor2() {
+    const termo = (document.getElementById('buscaProdFicha2')?.value || '').toLowerCase();
+    document.querySelectorAll('#listaProdsFicha2 > div').forEach(el => {
+      el.style.display = el.dataset.busca.includes(termo) ? '' : 'none';
+    });
+  },
+
+  _trocarProdutoFicha(fichaId, produtoId) {
+    App.closeModal();
+    setTimeout(() => {
+      const ficha = DB.getFichas().find(f => f.id === fichaId);
+      if (ficha) this._abrirFormFicha(ficha, produtoId);
+    }, 150);
   },
 
   renderIngredientes(produtos, unidades) {
@@ -181,6 +308,7 @@ const FichasPage = {
   salvar(e, id) {
     e.preventDefault();
     const dados = {
+      produtoId: document.getElementById('fProdutoId')?.value || '',
       nome: document.getElementById('fNome').value.trim(),
       categoria: document.getElementById('fCategoria').value,
       rendimento: parseFloat(document.getElementById('fRendimento').value) || 1,
@@ -214,8 +342,20 @@ const FichasPage = {
     const f = DB.getFichas().find(fi => fi.id === id);
     if (!f) return;
     const custo = this.calcularCusto(f);
+    const produto = f.produtoId ? DB.getProdutoPorId(f.produtoId) : null;
 
     const body = `
+      ${produto ? `
+        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.2rem">📦</span>
+          <div>
+            <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Produto vinculado</div>
+            <div style="font-weight:700;font-size:.9rem">${produto.nome}</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">${produto.categoria||''} ${produto.unidade ? '• '+produto.unidade : ''}</div>
+          </div>
+        </div>
+      ` : ''}
+
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
         <div class="card" style="text-align:center">
           <div style="font-size:1.5rem;font-weight:800;color:var(--accent)">${f.rendimento}</div>

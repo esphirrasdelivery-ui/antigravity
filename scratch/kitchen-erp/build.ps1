@@ -2,7 +2,7 @@
 $base = 'C:\Users\luxan\.gemini\antigravity\scratch\kitchen-erp'
 
 $css      = [IO.File]::ReadAllText("$base\css\style.css")
-$jsOrder  = @('db','barcode','dashboard','produtos','fichas','entrada','producao','armazenamento','saida','pedidos','relatorios','app')
+$jsOrder  = @('db','barcode','dashboard','produtos','fichas','entrada','producao','armazenamento','saida','pedidos','relatorios','dp','app')
 $jsContent = $jsOrder | ForEach-Object { [IO.File]::ReadAllText("$base\js\$_.js") }
 $allJs    = [string]::Join("`n`n", $jsContent)
 
@@ -34,21 +34,43 @@ if (Test-Path $deployDir) { Remove-Item -Recurse -Force $deployDir }
 New-Item -ItemType Directory -Path $deployDir | Out-Null
 
 Copy-Item "$base\cheferp.html" "$deployDir\index.html" -Force
-Copy-Item "$base\pedido.html" "$deployDir\pedido.html" -Force
+Copy-Item "$base\pedido.html"  "$deployDir\pedido.html"  -Force
+Copy-Item "$base\meta-loja.html" "$deployDir\meta-loja.html" -Force
+Copy-Item "$base\funcionario.html" "$deployDir\funcionario.html" -Force
 Set-Content -Path "$deployDir\_headers" -Value "/*`n  Content-Type: text/html; charset=utf-8" -Encoding UTF8
 
 $zipPath = "$base\netlify_deploy.zip"
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
 Compress-Archive -Path "$deployDir\*" -DestinationPath $zipPath -Force
-Write-Host "ZIP pronto para Netlify => netlify_deploy.zip"
+Write-Host "ZIP gerado => netlify_deploy.zip"
 
-# Autodeploy
-try {
-    $token = "nfp_2QTx7CVQEnL15Zv8MS62tm6xubBgZT55cec4"
-    $newSiteId = "74326dfc-a119-4459-8b86-30700dcbb8b9"
-    $zB = [IO.File]::ReadAllBytes($zipPath)
-    $deploy = Invoke-RestMethod -Uri "https://api.netlify.com/api/v1/sites/$newSiteId/deploys" -Method POST -Headers @{"Authorization"="Bearer $token"; "Content-Type"="application/zip"} -Body $zB -ErrorAction Stop
-    Write-Host "✅ Deploy na nuvem concluído! Status: $($deploy.state)"
-} catch {
-    Write-Host "⚠️ Erro no autodeploy: $($_.Exception.Message)"
+# Autodeploy Cloudflare Pages via Wrangler CLI
+$secretsFile = "$base\secrets.ps1"
+if (Test-Path $secretsFile) { . $secretsFile } else {
+    Write-Host "AVISO: secrets.ps1 nao encontrado. Crie o arquivo com seu token Cloudflare."
+    Write-Host "Modelo: scratch\kitchen-erp\secrets.ps1"
+    $cfToken = $null; $cfAccount = "954dd9950aa76a0a182396b4ffd7bbc8"; $cfProject = "esphirras-erp"
+}
+$cfUrl = "https://dash.cloudflare.com/" + $cfAccount + "/pages/view/" + $cfProject + "/deployments"
+
+$nodeOk = $null -ne (Get-Command node -ErrorAction SilentlyContinue)
+$npxOk  = $null -ne (Get-Command npx  -ErrorAction SilentlyContinue)
+
+if ($nodeOk -and $npxOk -and $cfToken) {
+    Write-Host "Fazendo deploy via Wrangler..."
+    $env:CLOUDFLARE_API_TOKEN  = $cfToken
+    $env:CLOUDFLARE_ACCOUNT_ID = $cfAccount
+    npx wrangler@3 pages deploy $deployDir --project-name $cfProject --branch main
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Deploy concluido! Acesse: https://$cfProject.pages.dev"
+    } else {
+        Write-Host "Wrangler falhou. Abrindo pasta e dashboard para deploy manual..."
+        Start-Process explorer.exe $deployDir
+        Start-Process $cfUrl
+    }
+} else {
+    Write-Host "Node.js nao encontrado. Abrindo pasta deploy e dashboard Cloudflare..."
+    Write-Host "Instale Node.js em https://nodejs.org para autodeploy futuro."
+    Start-Process explorer.exe $deployDir
+    Start-Process $cfUrl
 }

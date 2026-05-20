@@ -54,7 +54,8 @@ const ProdutosPage = {
   },
 
   renderTable() {
-    let produtos = DB.getProdutos();
+    let produtos = DB.getProdutos()
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
     if (this.filtro) {
       const f = this.filtro.toLowerCase();
       produtos = produtos.filter(p =>
@@ -125,6 +126,7 @@ const ProdutosPage = {
           </td>
           <td style="font-size:.8rem;color:var(--text-secondary)">${minimo}/${maximo} ${p.unidade || ''}</td>
           <td>R$ ${parseFloat(p.custo || 0).toFixed(2)}</td>
+          <td>R$ ${parseFloat(p.precoVenda || 0).toFixed(2)}</td>
           <td style="font-size:.82rem">${p.local || '—'}</td>
           <td><span class="badge ${badgeClass}">${status}</span></td>
           <td>
@@ -149,6 +151,7 @@ const ProdutosPage = {
             <th>Estoque Atual</th>
             <th>Mín/Máx</th>
             <th>Custo Unit.</th>
+            <th>Preço Venda</th>
             <th>Local</th>
             <th>Status</th>
             <th style="text-align:center">Ações</th>
@@ -191,7 +194,7 @@ const ProdutosPage = {
     const produto = id ? DB.getProdutoPorId(id) : null;
     const titulo  = produto ? 'Editar Produto' : 'Novo Produto';
 
-    const categorias    = ['Carnes','Hortifruti','Laticínios','Grãos e Cereais','Condimentos','Bebidas','Embalagens','Higiene/Limpeza','Outros'];
+    const categorias    = ['Recheios','Carnes','Hortifruti','Laticínios','Grãos e Cereais','Condimentos','Bebidas','Embalagens','Higiene/Limpeza','Outros'];
     const unidades      = ['kg','g','L','ml','un','cx','fardo','pct','dz'];
     const locais        = ['Câmara Fria','Câmara Seca','Despensa','Congelador','Prateleira','Adega'];
     const formasEntrega = ['Caixa','Saco','Bandeja','Fardo','Engradado','Galão','Lata','Pacote','Pote','Saco a vácuo','Unidade','Outro'];
@@ -219,14 +222,15 @@ const ProdutosPage = {
           </div>
           <div class="form-group">
             <label>Categoria *</label>
-            <select id="pCategoria" required>
+            <select id="pCategoria" required onchange="ProdutosPage.onCategoriaChange(this.value)">
               <option value="">Selecione...</option>
               ${categorias.map(c => `<option value="${c}" ${sel('categoria', c)}>${c}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label>Código Interno</label>
-            <input type="text" id="pCodigoInt" placeholder="Ex: FRA001" value="${val('codigoInterno')}" />
+            <label>Código Interno do Produto * <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400">(usado no EAN-13 da balança)</span></label>
+            <input type="text" id="pCodigoInt" required placeholder="Ex: 150" value="${val('codigoInterno')}" />
+            <span class="form-hint">Digite apenas o número do código — Ex: <code>150</code> → EAN-13 <code>2<u>00150</u>003528X</code></span>
           </div>
           <div class="form-group">
             <label>Código de Barras (EAN)</label>
@@ -322,9 +326,18 @@ const ProdutosPage = {
             <input type="number" id="pEstMax" min="0" step="0.01" placeholder="0" value="${val('estoqueMaximo')}" />
           </div>
           ${estInicialHtml}
+          <div class="form-group" id="grpFormMax" style="display:${val('categoria') === 'Recheios' ? 'block' : 'none'}">
+            <label>Máx. Padrão no Formulário de Pedidos (Lojas)</label>
+            <input type="number" id="pFormMax" min="0" step="1" placeholder="0" value="${val('formularioMaximo')}" />
+            <span class="form-hint">Quantidade máxima exibida no inventário das lojas. Pode ser ajustado por loja em "Cfg Estoque Máximo".</span>
+          </div>
           <div class="form-group">
             <label>Custo Unitário (R$)</label>
             <input type="number" id="pCusto" min="0" step="0.01" placeholder="0.00" value="${val('custo')}" />
+          </div>
+          <div class="form-group">
+            <label>Preço de Venda (R$)</label>
+            <input type="number" id="pPrecoVenda" min="0" step="0.01" placeholder="0.00" value="${val('precoVenda')}" />
           </div>
           <div class="form-group">
             <label>Fornecedor Principal</label>
@@ -349,6 +362,11 @@ const ProdutosPage = {
     if (produto && produto.temperatura) {
       setTimeout(() => ProdutosPage.onTemperaturaChange(produto.temperatura), 60);
     }
+  },
+
+  onCategoriaChange(categoria) {
+    const grp = document.getElementById('grpFormMax');
+    if (grp) grp.style.display = categoria === 'Recheios' ? 'block' : 'none';
   },
 
   onTemperaturaChange(valor) {
@@ -422,10 +440,20 @@ const ProdutosPage = {
       local:           document.getElementById('pLocal').value,
       estoqueMinimo:   parseFloat(document.getElementById('pEstMin').value) || 0,
       estoqueMaximo:   parseFloat(document.getElementById('pEstMax').value) || 0,
+      formularioMaximo: parseFloat(document.getElementById('pFormMax')?.value) || 0,
       custo:           parseFloat(document.getElementById('pCusto').value) || 0,
+      precoVenda:      parseFloat(document.getElementById('pPrecoVenda').value) || 0,
       fornecedor:      document.getElementById('pFornecedor').value.trim(),
       observacoes:     document.getElementById('pObs').value.trim(),
     };
+
+    if (dados.codigoInterno) {
+      const duplicado = DB.getProdutos().find(p => p.codigoInterno === dados.codigoInterno && p.id !== id);
+      if (duplicado) {
+        App.showToast('Código "' + dados.codigoInterno + '" já está em uso por: ' + duplicado.nome, 'warning');
+        return;
+      }
+    }
 
     if (id) {
       DB.updateProduto(id, dados);
@@ -491,11 +519,11 @@ const ProdutosPage = {
 
   exportCSV() {
     const produtos = DB.getProdutos();
-    const header   = 'ID,Nome,Categoria,Forma de Entrega,Temperatura,Cod.Interno,Cod.Barras,Unidade,Estoque,Est.Mínimo,Est.Máximo,Custo,Fornecedor,Local';
+    const header   = 'ID,Nome,Categoria,Forma de Entrega,Temperatura,Cod.Interno,Cod.Barras,Unidade,Estoque,Est.Mínimo,Est.Máximo,Custo,Preço Venda,Fornecedor,Local';
     const rows     = produtos.map(p =>
       [p.id, p.nome, p.categoria, p.formaEntrega, p.temperatura,
        p.codigoInterno, p.codigoBarras, p.unidade, p.estoque,
-       p.estoqueMinimo, p.estoqueMaximo, p.custo, p.fornecedor, p.local]
+       p.estoqueMinimo, p.estoqueMaximo, p.custo, p.precoVenda, p.fornecedor, p.local]
         .map(v => `"${v || ''}"`)
         .join(',')
     );
@@ -507,5 +535,30 @@ const ProdutosPage = {
     a.click();
   },
 
-  postRender() {}
+  postRender() {
+    this._limparDuplicados();
+  },
+
+  _limparDuplicados() {
+    const produtos = DB.getProdutos();
+    const grupos = {};
+    produtos.forEach(p => {
+      if (!p.codigoInterno) return;
+      if (!grupos[p.codigoInterno]) grupos[p.codigoInterno] = [];
+      grupos[p.codigoInterno].push(p);
+    });
+
+    let removidos = 0;
+    Object.values(grupos).forEach(grupo => {
+      if (grupo.length <= 1) return;
+      // Mantém o mais recente; remove os demais
+      grupo.sort((a, b) => new Date(b.criadoEm || 0) - new Date(a.criadoEm || 0));
+      grupo.slice(1).forEach(p => { DB.deleteProduto(p.id); removidos++; });
+    });
+
+    if (removidos > 0) {
+      App.showToast(removidos + ' produto(s) duplicado(s) removido(s) automaticamente.', 'info');
+      document.getElementById('produtosTableBody').innerHTML = this.renderTable();
+    }
+  },
 };

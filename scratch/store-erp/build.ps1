@@ -1,8 +1,8 @@
-﻿# build.ps1 — gera cheferp.html com CSS e JS embutidos (substituicao LITERAL, sem regex)
+# build.ps1 — gera cheferp.html com CSS e JS embutidos (substituicao LITERAL, sem regex)
 $base = 'C:\Users\luxan\.gemini\antigravity\scratch\store-erp'
 
 $css      = [IO.File]::ReadAllText("$base\css\style.css")
-$jsOrder  = @('db', 'dashboard', 'produtos', 'etiquetas', 'app')
+$jsOrder  = @('db', 'dashboard', 'produtos', 'pedidos', 'etiquetas', 'app')
 $jsContent = $jsOrder | ForEach-Object { [IO.File]::ReadAllText("$base\js\$_.js") }
 $allJs    = [string]::Join("`n`n", $jsContent)
 
@@ -43,11 +43,15 @@ Compress-Archive -Path "$deployDir\*" -DestinationPath $zipPath -Force
 Write-Host "ZIP pronto para Netlify => netlify_deploy.zip"
 
 # Autodeploy
+$secretsFile = "$base\secrets.ps1"
+if (Test-Path $secretsFile) { . $secretsFile } else {
+    Write-Host "AVISO: secrets.ps1 nao encontrado. Crie o arquivo com seu token Netlify."
+    $netlifyToken = $null; $netlifySiteId = '0a6a631f-0041-41a0-ad0a-a0afc8713040'
+}
 try {
-    $token = "nfp_2QTx7CVQEnL15Zv8MS62tm6xubBgZT55cec4"
-    $newSiteId = '0a6a631f-0041-41a0-ad0a-a0afc8713040'
+    if (-not $netlifyToken) { throw "Token nao configurado. Edite scratch\store-erp\secrets.ps1" }
     $zB = [IO.File]::ReadAllBytes($zipPath)
-    $deploy = Invoke-RestMethod -Uri "https://api.netlify.com/api/v1/sites/$newSiteId/deploys" -Method POST -Headers @{"Authorization"="Bearer $token"; "Content-Type"="application/zip"} -Body $zB -ErrorAction Stop
+    $deploy = Invoke-RestMethod -Uri "https://api.netlify.com/api/v1/sites/$netlifySiteId/deploys" -Method POST -Headers @{"Authorization"="Bearer $netlifyToken"; "Content-Type"="application/zip"} -Body $zB -ErrorAction Stop
     Write-Host "✅ Deploy na nuvem concluído! Status: $($deploy.state)"
 } catch {
     Write-Host "⚠️ Erro no autodeploy: $($_.Exception.Message)"

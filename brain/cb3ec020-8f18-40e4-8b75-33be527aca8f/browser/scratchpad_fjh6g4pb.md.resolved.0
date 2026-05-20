@@ -1,7 +1,0 @@
-# Task: Diagnose cheferp.html issues
-
-- [ ] Open http://localhost:8765/cheferp.html or local file
-- [ ] Capture console logs
-- [ ] Capture screenshots of page and console
-- [ ] Check network requests
-- [ ] Report findings

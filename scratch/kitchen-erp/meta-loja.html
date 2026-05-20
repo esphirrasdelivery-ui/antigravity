@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configurar Estoque Máximo — Esphirra's</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --bg:       #0f172a;
+      --card:     #1e293b;
+      --border:   #334155;
+      --accent:   #f59e0b;
+      --accent2:  #fbbf24;
+      --text:     #f1f5f9;
+      --muted:    #94a3b8;
+      --success:  #10b981;
+      --danger:   #ef4444;
+      --input-bg: #0f172a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-logo {
+      width: 44px; height: 44px;
+      background: var(--accent);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .header-title h1 { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+    .header-title p  { font-size: 0.78rem; color: var(--muted); }
+
+    /* ── CONTAINER ── */
+    .container { max-width: 680px; margin: 0 auto; padding: 28px 16px; }
+
+    /* ── CARD SELEÇÃO ── */
+    .select-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      margin-bottom: 24px;
+    }
+    .select-card label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--muted); margin-bottom: 10px; letter-spacing: .05em; text-transform: uppercase; }
+    .select-card select {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 1rem;
+      font-family: 'Inter', sans-serif;
+      padding: 12px 16px;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+    }
+    .select-card select:focus { outline: none; border-color: var(--accent); }
+
+    /* ── GRID DE ITENS ── */
+    #metasContainer { display: none; }
+
+    .section-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin: 24px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      gap: 16px;
+      transition: border-color .15s;
+    }
+    .item-row:hover { border-color: var(--accent); }
+    .item-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(245,158,11,.15); }
+
+    .item-row label { font-size: 0.9rem; color: var(--text); flex: 1; cursor: pointer; }
+    .item-row .qty-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .item-row input[type=number] {
+      width: 70px;
+      text-align: center;
+      background: var(--input-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      padding: 6px 4px;
+    }
+    .item-row input[type=number]:focus { outline: none; border-color: var(--accent); }
+    .qty-btn {
+      width: 30px; height: 30px;
+      border: none;
+      border-radius: 7px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--border);
+      color: var(--text);
+      transition: background .15s;
+    }
+    .qty-btn:hover { background: var(--accent); color: #000; }
+
+    /* ── BOTÃO SALVAR ── */
+    .btn-salvar {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      margin-top: 28px;
+      transition: transform .15s, box-shadow .15s;
+      box-shadow: 0 0 30px rgba(245,158,11,.3);
+    }
+    .btn-salvar:hover { transform: scale(1.02); box-shadow: 0 0 40px rgba(245,158,11,.5); }
+    .btn-salvar:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--success);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: .9rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      transition: transform .3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.error { background: var(--danger); }
+
+    /* ── LOADING ── */
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,.3);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── STATUS BADGE ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16,185,129,.1);
+      border: 1px solid rgba(16,185,129,.3);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: .8rem;
+      color: var(--success);
+      margin-bottom: 20px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-logo">🏪</div>
+    <div class="header-title">
+      <h1>Configurar Estoque Máximo</h1>
+      <p>Esphirra's Delivery — Acesso Restrito</p>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <div class="select-card" id="selectCard">
+      <label>Selecione a sua Loja</label>
+      <select id="selLoja" onchange="carregarMetas()">
+        <option value="">— Selecione —</option>
+        <option value="VALPARAISO">🏪 VALPARAISO</option>
+        <option value="VITORIA">🏪 VITORIA</option>
+        <option value="ITAPARICA">🏪 ITAPARICA</option>
+        <option value="GUARAPARI">🏪 GUARAPARI</option>
+        <option value="LINHARES">🏪 LINHARES</option>
+        <option value="ITAPOÃ">🏪 ITAPOÃ</option>
+      </select>
+    </div>
+
+    <div id="statusBar" class="status-bar" style="display:none">
+      <div class="dot"></div>
+      <span id="statusText">Conectado ao banco de dados</span>
+    </div>
+
+    <div id="metasContainer">
+      <div id="metasGrid"></div>
+      <button class="btn-salvar" id="btnSalvar" onclick="salvarMetas()">
+        💾 Salvar Estoque Máximo
+      </button>
+    </div>
+
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+// ── CONFIG FIREBASE ──────────────────────────────────────────────────────
+const FIREBASE_URL = 'https://controle-cozinha-central-default-rtdb.firebaseio.com';
+
+// ── PARAM ?loja= — pré-seleciona e trava a loja ───────────────────────────
+const _lojaParam = new URLSearchParams(window.location.search).get('loja');
+if (_lojaParam) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const sel = document.getElementById('selLoja');
+    const card = document.getElementById('selectCard');
+    sel.value = _lojaParam.toUpperCase();
+    // Esconde o seletor e mostra o nome da loja no header
+    card.style.display = 'none';
+    document.querySelector('.header-title p').textContent = 'Loja ' + _lojaParam.toUpperCase() + ' — Acesso Restrito';
+    carregarMetas();
+  });
+}
+
+// ── ESTADO ───────────────────────────────────────────────────────────────
+let metaAtual     = {};   // { 'Item': quantidade, ... }
+let lojaAtual     = '';
+let metaId        = null; // Firebase key
+let catalogoAtual = [];   // [ { titulo, icon, itens:[{nome,...}] } ]
+
+// ── CARREGAR METAS DO FIREBASE ────────────────────────────────────────────
+async function carregarMetas() {
+  lojaAtual = document.getElementById('selLoja').value;
+  if (!lojaAtual) {
+    document.getElementById('metasContainer').style.display = 'none';
+    document.getElementById('statusBar').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('statusBar').style.display = 'flex';
+  document.getElementById('statusText').textContent = 'Carregando dados...';
+  document.getElementById('metasContainer').style.display = 'none';
+
+  try {
+    const [resMetas, resCatalogo, resProdutos] = await Promise.all([
+      fetch(`${FIREBASE_URL}/chef_lojas_metas.json`),
+      fetch(`${FIREBASE_URL}/chef_pedido_catalogo.json`),
+      fetch(`${FIREBASE_URL}/chef_produtos.json`)
+    ]);
+
+    const dataMetas    = await resMetas.json();
+    const dataCatalogo = await resCatalogo.json();
+    const dataProdutos = await resProdutos.json();
+
+    // Monta catálogo base
+    if (dataCatalogo) {
+      catalogoAtual = Array.isArray(dataCatalogo)
+        ? dataCatalogo
+        : Object.values(dataCatalogo);
+    }
+
+    // Deriva Recheios dos produtos com categoria "Recheios"
+    if (dataProdutos) {
+      const prods = Object.values(dataProdutos).filter(p => p && p.categoria === 'Recheios');
+      if (prods.length > 0) {
+        prods.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
+        const recheioCat = {
+          id: 'insumos', nome: 'Recheios', icon: '🥩',
+          itens: prods.map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0), fornecedor: p.fornecedor || '' }))
+        };
+        const idx = catalogoAtual.findIndex(c => c.id === 'insumos');
+        if (idx >= 0) catalogoAtual[idx] = recheioCat;
+        else catalogoAtual.unshift(recheioCat);
+      }
+    }
+
+    // Metas da loja
+    metaAtual = {};
+    metaId    = null;
+    if (dataMetas) {
+      const found = Object.entries(dataMetas).find(([, v]) => v.loja === lojaAtual);
+      if (found) {
+        metaId    = found[1].id || found[0];
+        metaAtual = found[1].itens || {};
+      }
+    }
+
+    renderGrid();
+    document.getElementById('statusText').textContent = 'Conectado — Loja ' + lojaAtual;
+    document.getElementById('metasContainer').style.display = 'block';
+
+  } catch (e) {
+    document.getElementById('statusText').textContent = 'Erro ao conectar. Verifique a internet.';
+    showToast('Falha na conexão com o banco de dados.', true);
+  }
+}
+
+// ── RENDERIZAR GRADE DE ITENS ─────────────────────────────────────────────
+function renderGrid() {
+  let html = '';
+
+  catalogoAtual.forEach(cat => {
+    const titulo = (cat.icon ? cat.icon + ' ' : '') + (cat.nome || cat.titulo || '');
+    html += '<div class="section-title">' + titulo + '</div>';
+    (cat.itens || []).forEach(itemObj => {
+      const item = typeof itemObj === 'object' ? itemObj.nome : itemObj;
+      const val  = metaAtual[item] || 0;
+      const sid  = sanitize(item);
+      html += `
+        <div class="item-row">
+          <label for="meta_${sid}">${item}</label>
+          <div class="qty-wrap">
+            <button class="qty-btn" type="button" onclick="adj('${sid}', -1)">−</button>
+            <input type="number" id="meta_${sid}" data-item="${item}" min="0" value="${val}" />
+            <button class="qty-btn" type="button" onclick="adj('${sid}', 1)">+</button>
+          </div>
+        </div>
+      `;
+    });
+  });
+
+  document.getElementById('metasGrid').innerHTML = html || '<p style="color:var(--muted);text-align:center;padding:20px">Nenhum item no catálogo.</p>';
+}
+
+// ── AJUSTE ± ──────────────────────────────────────────────────────────────
+function adj(id, delta) {
+  const inp = document.getElementById('meta_' + id);
+  if (!inp) return;
+  const v = Math.max(0, (parseInt(inp.value) || 0) + delta);
+  inp.value = v;
+}
+
+// ── SANITIZE (ID seguro para DOM) ─────────────────────────────────────────
+function sanitize(str) {
+  return str.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+// ── SALVAR NO FIREBASE ────────────────────────────────────────────────────
+async function salvarMetas() {
+  if (!lojaAtual) return;
+
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Salvando...';
+
+  // Coletar valores do DOM
+  const objItens = {};
+  document.querySelectorAll('[data-item]').forEach(inp => {
+    objItens[inp.dataset.item] = parseInt(inp.value) || 0;
+  });
+
+  const payload = {
+    id:           metaId || ('meta_' + lojaAtual + '_' + Date.now()),
+    loja:         lojaAtual,
+    itens:        objItens,
+    atualizadoEm: new Date().toISOString()
+  };
+
+  if (!metaId) metaId = payload.id;
+
+  try {
+    await fetch(`${FIREBASE_URL}/chef_lojas_metas/${metaId}.json`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+
+    metaAtual = objItens;
+    showToast('✅ Estoque máximo salvo com sucesso!', false);
+
+  } catch (e) {
+    showToast('❌ Erro ao salvar. Tente novamente.', true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '💾 Salvar Estoque Máximo';
+  }
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = isError ? 'error show' : 'show';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = isError ? 'error' : ''; }, 3500);
+}
+</script>
+</body>
+</html>

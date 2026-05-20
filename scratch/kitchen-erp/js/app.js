@@ -14,6 +14,7 @@ const App = {
     saida: { module: 'SaidaPage', title: '📤 Saída de Produtos' },
     pedidos: { module: 'PedidosPage', title: '🛒 Pedidos / Romaneio' },
     relatorios: { module: 'RelatoriosPage', title: '📊 Relatórios' },
+    dp: { module: 'DpPage', title: '👥 Departamento Pessoal' },
   },
 
   init() {
@@ -93,7 +94,8 @@ const App = {
           ArmazenamentoPage: ArmazenamentoPage,
           SaidaPage:         SaidaPage,
           PedidosPage:       PedidosPage,
-          RelatoriosPage:    RelatoriosPage
+          RelatoriosPage:    RelatoriosPage,
+          DpPage:            DpPage
         };
     }
 

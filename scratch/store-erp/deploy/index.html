@@ -1117,6 +1117,16 @@ textarea { resize: vertical; min-height: 80px; }
 }</style>
 </head>
 <body>
+<script>
+window.onerror = function(msg, url, line, col, error) {
+  setTimeout(() => {
+     const p = document.getElementById("pageContainer");
+     if(p) p.innerHTML = "<div style='color:red;font-size:20px;padding:50px;background:white'>ERRO CAPTURADO: " + msg + "<br>Line: " + line + "</div>";
+     else document.body.innerHTML += "<div style='color:red;font-size:20px;padding:50px;background:white'>ERRO CAPTURADO: " + msg + "<br>Line: " + line + "</div>";
+  }, 100);
+  return false;
+};
+</script>
 
   <!-- Overlay para fechar sidebar mobile -->
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -1146,7 +1156,13 @@ textarea { resize: vertical; min-height: 80px; }
         <span>Itens & Validades</span>
       </a>
       
-      <!-- NOVA ABA -->
+      <!-- NOVA ABA (COMPRAS) -->
+      <a href="#" class="nav-item" data-page="pedidos" style="border-left: 3px solid #10b981; background: rgba(16,185,129,0.05);">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#10b981"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <span style="color:#10b981; font-weight:600;">Pedidos / Compras</span>
+      </a>
+
+      <!-- Etiquetas -->
       <a href="#" class="nav-item" data-page="etiquetas" style="border-left: 3px solid var(--accent); background: var(--accent-dim);">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
         <span style="color:var(--accent); font-weight:600;">Etiquetas (Zebra)</span>
@@ -1201,6 +1217,7 @@ textarea { resize: vertical; min-height: 80px; }
   <div class="toast-container no-print" id="toastContainer"></div>
 
   <!-- Scripts -->
+  
   
   
   
@@ -1303,7 +1320,7 @@ function _inicializarFirebase() {
 }
 
 function _sincronizarDoFirebase() {
-  var colecoes = ['loja_produtos', 'loja_movimentacoes', 'loja_lotes', 'loja_producoes', 'loja_fichas', 'loja_pedidos', 'loja_lojas_metas'];
+  var colecoes = ['loja_produtos', 'loja_movimentacoes', 'loja_lotes', 'loja_producoes', 'loja_fichas', 'loja_pedidos', 'loja_lojas_metas', 'loja_compras_produtos', 'loja_compras_pedidos'];
   Promise.all(colecoes.map(function(col) {
     return FB.get(col).then(function(dados) {
       if (dados && dados.length > 0) {
@@ -1644,6 +1661,70 @@ const DB = {
     ];
 
     produtosBase.forEach(p => this.addProduto({ ...p, fornecedor: '', observacoes: '' }));
+  },
+// ===== COMPRAS DE LOJA (PEDIDOS E PRODUTOS DE COMPRA INTERNA) =====
+  getProdutosCompra() {
+    return _getLocal('loja_compras_produtos');
+  },
+  saveProdutosCompra(data) {
+    _saveLocal('loja_compras_produtos', data);
+  },
+  addProdutoCompra(produto) {
+    const produtos = this.getProdutosCompra();
+    produto.id = 'pc' + Date.now().toString() + Math.random().toString(36).substr(2, 4);
+    produtos.push(produto);
+    this.saveProdutosCompra(produtos);
+    _saveFirebase('loja_compras_produtos', produto.id, produto);
+    return produto;
+  },
+  deleteProdutoCompra(id) {
+    const produtos = this.getProdutosCompra().filter(p => p.id !== id);
+    this.saveProdutosCompra(produtos);
+    _deleteFirebase('loja_compras_produtos', id);
+  },
+
+  getPedidosCompra() {
+    return _getLocal('loja_compras_pedidos') || [];
+  },
+  savePedidosCompra(data) {
+    _saveLocal('loja_compras_pedidos', data);
+  },
+  addPedidoCompra(pedido) {
+    const pedidos = this.getPedidosCompra();
+    pedido.id = 'pedc' + Date.now().toString();
+    pedido.data = new Date().toISOString();
+    pedidos.push(pedido);
+    this.savePedidosCompra(pedidos);
+    _saveFirebase('loja_compras_pedidos', pedido.id, pedido);
+    return pedido;
+  },
+
+  // ===== INICIALIZAÇÃO DE DADOS DE COMPRA (ROBÔ DE SEED) =====
+  seedProdutosCompra() {
+    if (this.getProdutosCompra().length > 0) return; // Ja tem dados
+
+    const listaMercearia = [
+      "MUSSARELA PÇ", "Requeijão 1,8 kg", "Cheddar 1,2 kg", "PARMESÃO Peça", "GORGONZOLA Peça",
+      "OREGANO Pacote", "KETCHUP 3,5 L", "Cream Cheese 1 kg", "Lombo Canadense", "Hamburgueira",
+      "Sacolina de chupchup", "LEITE NINHO", "Bombom Ouro Branco", "CALABRESA FATIADA", 
+      "Chocolate branco", "Papel Lanche UN", "Doce de Leite Caixa", "Alho Poro", "Trigo kg", "Ovo de Galinha"
+    ];
+    
+    const listaLimpeza = [
+      "Multiuso Caixa", "Detergente Caixa", "Cloro Galão", "Sabão pó CX 500G", "Bombril Pacote",
+      "Esponja fina pacote", "Esponja grossa UN", "Limpador Forno", "Saco Lixo 100L Fardo",
+      "Saco Lixo 200 l Fardo", "Luva Preta Caixa", "Touca Pacote", "Papel para maos"
+    ];
+
+    const listaBebidas = [
+      "Guarana 1,5 L", "Guarana 1,5 l Zero", "Guarana 600 ml", "Guarana 600 ml Zero", "Guarana Lata",
+      "Guarana Lata Zero", "Agua sem gas", "Agua com gas", "Schwepps Lata", "H2O Limao", "H2O Limoneto"
+    ];
+
+    listaMercearia.forEach(nome => this.addProdutoCompra({ nome, categoria: 'Laticínios e Mercearia' }));
+    listaLimpeza.forEach(nome => this.addProdutoCompra({ nome, categoria: 'Limpeza e Descartáveis' }));
+    listaBebidas.forEach(nome => this.addProdutoCompra({ nome, categoria: 'Bebidas' }));
+    console.log('[DB] Produtos de Compra injetados com sucesso.');
   }
 };
 
@@ -1651,7 +1732,10 @@ const DB = {
 _inicializarFirebase();
 
 // Inicializa dados de exemplo se banco vazio
-setTimeout(function() { DB.inicializarDadosExemplo(); }, 500);
+setTimeout(function() { 
+    DB.inicializarDadosExemplo(); 
+    DB.seedProdutosCompra();
+}, 500);
 
 
 window.DashboardPage = {
@@ -1816,6 +1900,199 @@ window.ProdutosPage = {
 
 
 /**
+ * pedidos.js
+ * Módulo de Pedidos e Compras (Gestão Interna da Loja)
+ */
+
+window.PedidosPage = {
+  render() {
+    const pedidos = DB.getPedidosCompra() || [];
+    
+    // Ordenar do mais recente
+    pedidos.sort((a,b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+
+    let tableRows = '';
+    
+    if (pedidos.length === 0) {
+      tableRows = '<tr><td colspan="4" class="text-center" style="padding:40px;color:var(--text-muted)">Nenhum pedido de compra gerado ainda.</td></tr>';
+    } else {
+      tableRows = pedidos.map(p => {
+        const d = new Date(p.data);
+        const dataStr = d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        
+        // Sum total quantities
+        const totalItems = (p.itens || []).reduce((acc, curr) => acc + curr.quantidade, 0);
+
+        return `
+          <tr>
+            <td><strong>#${p.id.substring(4, 10).toUpperCase()}</strong></td>
+            <td>${dataStr}</td>
+            <td>${totalItems} volumes totais</td>
+            <td style="text-align:right">
+              <button class="btn btn-secondary btn-sm" onclick="PedidosPage.imprimirPedido('${p.id}')">🖨️ Imprimir Lista</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    return `
+      <div class="card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2>🛒 Histórico de Compras da Loja</h2>
+            <p>Faça as listas de compras semanais para distribuidoras locais, atacadistas e feira.</p>
+          </div>
+          <button class="btn btn-primary" style="font-size:1.1rem; padding: 10px 20px" onclick="PedidosPage.novoPedido()">+ NOVO PEDIDO</button>
+        </div>
+        <div class="card-body">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Cód. Pedido</th>
+                <th>Data</th>
+                <th>Tamanho do Pedido</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  },
+
+  postRender() {},
+
+  novoPedido() {
+    // Busca banco
+    const produtos = DB.getProdutosCompra() || [];
+    
+    if(produtos.length === 0) {
+        App.showToast("Nenhum produto cadastrado no sistema ainda.", "warning");
+        return;
+    }
+
+    // Agrupa itens por categoria
+    const porCategoria = {};
+    produtos.forEach(p => {
+       const cat = p.categoria || 'Outros';
+       if(!porCategoria[cat]) porCategoria[cat] = [];
+       porCategoria[cat].push(p);
+    });
+
+    let formHTML = '<div style="max-height: 60vh; overflow-y: auto; padding-right:10px">';
+    
+    Object.keys(porCategoria).sort().forEach(catName => {
+        formHTML += `<h3 style="margin-top:20px; font-weight:700; color:var(--text-main); border-bottom:1px solid var(--border); padding-bottom:5px">${catName}</h3>`;
+        formHTML += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:15px; margin-top:10px">`;
+        
+        porCategoria[catName].forEach(item => {
+            formHTML += `
+               <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-secondary); padding:10px; border-radius:6px; border:1px solid var(--border)">
+                  <label style="font-size:0.95rem; margin:0; flex:1">${item.nome}</label>
+                  <input type="number" class="input-form input-compra" data-id="${item.id}" data-nome="${item.nome}" min="0" placeholder="0" style="width:70px; text-align:center; margin:0;" />
+               </div>
+            `;
+        });
+        
+        formHTML += `</div>`;
+    });
+    
+    formHTML += '</div>';
+
+    App.openModal('Gerar Nova Lista de Compra', formHTML, [
+       { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' },
+       { label: 'Salvar e Gerar Lista', class: 'btn-primary', action: 'PedidosPage.salvarNovoPedido()' },
+    ], 'modal-lg');
+  },
+
+  salvarNovoPedido() {
+      const inputs = document.querySelectorAll('.input-compra');
+      const itensSelecionados = [];
+
+      inputs.forEach(inp => {
+          const qtd = parseInt(inp.value) || 0;
+          if(qtd > 0) {
+              itensSelecionados.push({
+                  id: inp.getAttribute('data-id'),
+                  nome: inp.getAttribute('data-nome'),
+                  quantidade: qtd
+              });
+          }
+      });
+
+      if (itensSelecionados.length === 0) {
+          return alert("Preencha ao menos 1 item para gerar o pedido.");
+      }
+
+      const pedido = DB.addPedidoCompra({ itens: itensSelecionados });
+      App.closeModal();
+      App.showToast("✅ Lista de Compras gerada!", "success");
+      App.navigateTo('pedidos');
+      
+      // Abre a impressao direto
+      setTimeout(() => this.imprimirPedido(pedido.id), 500);
+  },
+
+  imprimirPedido(id) {
+      const pedidos = DB.getPedidosCompra();
+      const p = pedidos.find(x => x.id === id);
+      if(!p) return;
+
+      const dStr = new Date(p.data).toLocaleDateString('pt-BR');
+      
+      let htmlRows = '';
+      p.itens.forEach(i => {
+          htmlRows += `
+            <tr style="border-bottom:1px dashed #ccc">
+               <td style="padding:10px 0;width:30px"><div style="width:15px;height:15px;border:2px solid #000;border-radius:3px"></div></td>
+               <td style="padding:10px 0;font-weight:bold; font-size:1.1rem; width:50px">${i.quantidade}</td>
+               <td style="padding:10px 0;font-size:1.1rem">${i.nome}</td>
+               <td style="padding:10px 0;border-bottom:1px solid #999"></td>
+            </tr>
+          `;
+      });
+
+      const win = window.open('', '_blank');
+      win.document.write(`
+        <html>
+           <head>
+             <title>Lista Compra #${p.id.substring(4, 10).toUpperCase()}</title>
+             <style>
+               body { font-family: Arial, sans-serif; padding:40px; color:#000; }
+               @media print { body { padding:0; } button { display:none; } }
+             </style>
+           </head>
+           <body>
+              <div style="text-align:center; border-bottom:2px solid #000; margin-bottom:20px; padding-bottom:10px">
+                 <h1 style="margin:0 0 10px 0">🛒 LISTA DE COMPRAS</h1>
+                 <strong>Data de Geração:</strong> ${dStr} &nbsp; | &nbsp; <strong>Código:</strong> #${p.id.substring(4, 10).toUpperCase()}
+              </div>
+              <table style="width:100%; border-collapse:collapse">
+                 <thead>
+                   <tr>
+                     <th></th>
+                     <th style="text-align:left; color:#555">QTD</th>
+                     <th style="text-align:left; color:#555">DESCRIÇÃO DO ITEM</th>
+                     <th style="text-align:left; color:#555">MARCA COLETADA / PREÇO (R$)</th>
+                   </tr>
+                 </thead>
+                 <tbody>${htmlRows}</tbody>
+              </table>
+
+              <div style="margin-top:50px;text-align:center">
+                 <button onclick="window.print()" style="padding:15px 30px;font-size:18px;background:#000;color:#fff;border:none;cursor:pointer">Imprimir Agora</button>
+              </div>
+           </body>
+        </html>
+      `);
+      win.document.close();
+  }
+};
+
+
+/**
  * etiquetas.js 
  * Módulo para emissão de Etiquetas Térmicas (Zebra 60x30)
  */
@@ -1921,7 +2198,7 @@ window.EtiquetasPage = {
     // Formatadores locais para aparecer bonito DD/MM/YYYY
     const brFormat = (strDate) => {
         const parts = strDate.split('-');
-        return \`\${parts[2]}/\${parts[1]}/\${parts[0]}\`;
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
     };
 
     const fabFormat = brFormat(dtFabOrig);
@@ -2003,7 +2280,7 @@ window.EtiquetasPage = {
                 document.getElementById('avisoTela').style.marginTop = '0px';
                 window.print();
             }, 500);
-          </script>
+          <\/script>
         </body>
       </html>
     `);
@@ -2018,6 +2295,7 @@ const App = {
   pages: {
     dashboard: { module: 'DashboardPage', title: 'Painel Principal' },
     produtos:  { module: 'ProdutosPage', title: 'Itens & Validades' },
+    pedidos:   { module: 'PedidosPage', title: 'Pedidos e Compras' },
     etiquetas: { module: 'EtiquetasPage', title: 'Gerador de Etiquetas (Zebra)' }
   },
 
@@ -2057,6 +2335,7 @@ const App = {
         window.moduleRegistry = {
           DashboardPage: DashboardPage,
           ProdutosPage:  ProdutosPage,
+          PedidosPage:   PedidosPage,
           EtiquetasPage: EtiquetasPage
         };
     }

@@ -12,6 +12,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- QuaggaJS for barcode scanning -->
   <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+  <!-- EmailJS -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>/* ===== RESET & BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1132,6 +1134,11 @@ textarea { resize: vertical; min-height: 80px; }
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
         <span>Pedidos</span>
       </a>
+      <div class="nav-section-label">Gestão</div>
+      <a href="#" class="nav-item" data-page="dp">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        <span>Depto. Pessoal</span>
+      </a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-info">
@@ -1208,6 +1215,7 @@ textarea { resize: vertical; min-height: 80px; }
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
+  
   
   
   
@@ -1317,6 +1325,8 @@ function _inicializarFirebase() {
         _fbReady = true;
         _sincronizarDoFirebase();
         _mostrarStatusConexao(true);
+        // Mantém todos os computadores sincronizados automaticamente
+        setInterval(_sincronizarDoFirebase, 30000);
       } else {
         throw new Error('HTTP ' + r.status);
       }
@@ -1329,20 +1339,51 @@ function _inicializarFirebase() {
 }
 
 function _sincronizarDoFirebase() {
-  var colecoes = ['chef_produtos', 'chef_movimentacoes', 'chef_lotes', 'chef_producoes', 'chef_fichas', 'chef_pedidos', 'chef_lojas_metas'];
+  var colecoes = ['chef_produtos', 'chef_movimentacoes', 'chef_lotes', 'chef_producoes', 'chef_fichas', 'chef_pedidos', 'chef_lojas_metas', 'chef_lixeira', 'chef_funcionarios', 'chef_convites'];
+  var mudou = false;
+
   Promise.all(colecoes.map(function(col) {
     return FB.get(col).then(function(dados) {
       if (dados && dados.length > 0) {
-        localStorage.setItem(col, JSON.stringify(dados));
+        var novo = JSON.stringify(dados);
+        if (novo !== localStorage.getItem(col)) {
+          mudou = true;
+          localStorage.setItem(col, novo);
+        }
       }
     });
-  })).then(function() {
-    console.log('[DB] Sincronizado com Firebase.');
-    // Re-renderiza a página atual para mostrar dados atualizados
-    if (window.App && App.currentPage) {
-      App.navigateTo(App.currentPage);
+  }))
+  .then(function() {
+    // Catálogo é salvo como array direto (não como objetos com ID),
+    // então precisa de tratamento especial fora do loop acima.
+    return fetch(FB.baseUrl() + '/chef_pedido_catalogo.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var arr = null;
+        if (Array.isArray(data)) {
+          arr = data;
+        } else if (data && typeof data === 'object') {
+          // Firebase pode retornar objeto com chaves numéricas ao invés de array
+          arr = Object.values(data).filter(function(v) { return v !== null; });
+        }
+        if (arr && arr.length > 0) {
+          var novo = JSON.stringify(arr);
+          if (novo !== localStorage.getItem('chef_pedido_catalogo')) {
+            mudou = true;
+            localStorage.setItem('chef_pedido_catalogo', novo);
+          }
+        }
+      });
+  })
+  .then(function() {
+    if (mudou) {
+      console.log('[DB] Dados novos recebidos do Firebase — atualizando tela.');
+      if (window.App && App.currentPage) {
+        App.navigateTo(App.currentPage);
+      }
     }
-  }).catch(function(e) {
+  })
+  .catch(function(e) {
     console.warn('[DB] Erro ao sincronizar:', e);
   });
 }
@@ -1508,7 +1549,10 @@ const DB = {
 
   // ===== PEDIDOS DE LOJA =====
   getPedidos() {
-    return _getLocal('chef_pedidos');
+    // Sempre exclui IDs que estão na lixeira — mesmo que o Firebase sync
+    // tenha restaurado o pedido em chef_pedidos antes do DELETE concluir.
+    const lixeiraIds = new Set((_getLocal('chef_lixeira') || []).map(i => i.id));
+    return (_getLocal('chef_pedidos') || []).filter(p => !lixeiraIds.has(p.id));
   },
   savePedidos(data) {
     _saveLocal('chef_pedidos', data);
@@ -1523,6 +1567,84 @@ const DB = {
       return pedidos[idx];
     }
     return null;
+  },
+  deletePedido(id) {
+    const pedido = this.getPedidos().find(p => p.id === id);
+    if (!pedido) return;
+
+    // 1. Remove do array local e do Firebase
+    const pedidos = this.getPedidos().filter(p => p.id !== id);
+    this.savePedidos(pedidos);
+
+    // 2. Deleta do nó /chef_pedidos/<id> no Firebase de forma garantida
+    fetch(FB.baseUrl() + '/chef_pedidos/' + id + '.json', { method: 'DELETE' })
+      .catch(e => console.warn('[DB] Erro ao deletar pedido no Firebase:', e.message));
+
+    // 3. Move para a lixeira (local + Firebase)
+    this.moverParaLixeira(pedido);
+  },
+
+  // ===== LIXEIRA =====
+  MESES_RETENCAO: 60, // 60 meses = 5 anos
+
+  getLixeira() {
+    return _getLocal('chef_lixeira') || [];
+  },
+  saveLixeira(data) {
+    _saveLocal('chef_lixeira', data);
+  },
+
+  moverParaLixeira(pedido) {
+    const lixeira = this.getLixeira();
+    const item = {
+      ...pedido,
+      _deletadoEm: new Date().toISOString(),
+      _expiraEm:   new Date(Date.now() + this.MESES_RETENCAO * 30 * 24 * 60 * 60 * 1000).toISOString()
+    };
+    lixeira.push(item);
+    this.saveLixeira(lixeira);
+    _saveFirebase('chef_lixeira', item.id, item);
+  },
+
+  restaurarDaLixeira(id) {
+    const lixeira = this.getLixeira();
+    const item = lixeira.find(i => i.id === id);
+    if (!item) return;
+    // Remove campos de lixeira e restaura como pedido pendente
+    const { _deletadoEm, _expiraEm, ...pedido } = item;
+    const pedidos = this.getPedidos();
+    pedidos.push({ ...pedido, status: 'pendente' });
+    this.savePedidos(pedidos);
+    _saveFirebase('chef_pedidos', pedido.id, { ...pedido, status: 'pendente' });
+    // Remove da lixeira
+    this.saveLixeira(lixeira.filter(i => i.id !== id));
+    fetch(FB.baseUrl() + '/chef_lixeira/' + id + '.json', { method: 'DELETE' })
+      .catch(e => console.warn('[DB] Erro ao remover da lixeira Firebase:', e.message));
+  },
+
+  excluirDaLixeiraPermanentemente(id) {
+    this.saveLixeira(this.getLixeira().filter(i => i.id !== id));
+    fetch(FB.baseUrl() + '/chef_lixeira/' + id + '.json', { method: 'DELETE' })
+      .catch(e => console.warn('[DB] Erro ao excluir lixeira Firebase:', e.message));
+  },
+
+  limparLixeiraExpirada() {
+    const agora = new Date();
+    const lixeira = this.getLixeira();
+    const validos = lixeira.filter(i => {
+      if (!i._expiraEm) return true; // sem data = mantém
+      return new Date(i._expiraEm) > agora;
+    });
+    const expirados = lixeira.filter(i => i._expiraEm && new Date(i._expiraEm) <= agora);
+    if (expirados.length > 0) {
+      this.saveLixeira(validos);
+      expirados.forEach(i => {
+        fetch(FB.baseUrl() + '/chef_lixeira/' + i.id + '.json', { method: 'DELETE' })
+          .catch(() => {});
+      });
+      console.log('[DB] Lixeira: ' + expirados.length + ' pedido(s) expirado(s) removido(s) permanentemente.');
+    }
+    return expirados.length;
   },
 
   // ===== METAS DE LOJAS (PAR-LEVEL) =====
@@ -1546,6 +1668,110 @@ const DB = {
     }
     this.saveMetas(metas);
     _saveFirebase('chef_lojas_metas', metaRec.id, metaRec);
+  },
+
+  // ===== CATÁLOGO DO FORMULÁRIO DE PEDIDOS =====
+  getCatalogoPedido() {
+    const produtos = this.getProdutos();
+
+    // Mapa nome(lower) → produto — permite enriquecer itens do catálogo com dados do ERP
+    const prodMap = {};
+    produtos.forEach(p => { prodMap[p.nome.toLowerCase()] = p; });
+    const _prodPorNome = nome => {
+      const k = nome.toLowerCase();
+      if (prodMap[k]) return prodMap[k];
+      const match = Object.keys(prodMap).find(pk => pk.includes(k) || k.includes(pk));
+      return match ? prodMap[match] : null;
+    };
+    // Garante que cada item do catálogo tenha fornecedor e max vindos do produto cadastrado
+    // quando esses campos não estiverem definidos no catálogo
+    const _enrich = item => {
+      const p = _prodPorNome(item.nome);
+      return {
+        ...item,
+        fornecedor: item.fornecedor || (p ? p.fornecedor || '' : ''),
+        max: (item.max !== undefined && item.max !== null) ? item.max : (p ? parseFloat(p.formularioMaximo || 0) : 0)
+      };
+    };
+
+    // Recheios são derivados dos produtos cadastrados com categoria "Recheios"
+    const recheios = produtos
+      .filter(p => p.categoria === 'Recheios')
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }))
+      .map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0), fornecedor: p.fornecedor || '' }));
+
+    const local = _getLocal('chef_pedido_catalogo');
+    const base  = (local && Array.isArray(local) && local.length > 0) ? local : this._catalogoPadrao();
+
+    // Enriquece TODAS as categorias com dados do ERP (fornecedor, max)
+    const outras = base.filter(c => c.id !== 'insumos').map(cat => ({
+      ...cat,
+      itens: cat.itens.map(_enrich)
+    }));
+    const recheiosBase = (base.find(c => c.id === 'insumos') || { itens: [] }).itens.map(_enrich);
+
+    return [
+      { id: 'insumos', nome: 'Recheios', icon: '🥩', itens: recheios.length > 0 ? recheios : recheiosBase },
+      ...outras
+    ];
+  },
+  saveCatalogoPedido(categorias) {
+    _saveLocal('chef_pedido_catalogo', categorias);
+    // Salva no Firebase como nó único (PUT substitui o nó inteiro)
+    fetch(FB.baseUrl() + '/chef_pedido_catalogo.json', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(categorias)
+    }).catch(e => console.warn('[Catálogo] Firebase error:', e.message));
+  },
+  _catalogoPadrao() {
+    return [
+      { id: 'insumos', nome: 'Recheios', icon: '🥩', itens: [
+          {nome:'Pepperoni',max:0},{nome:'Carne Hamburguer',max:0},{nome:'Bacon em cubos',max:0},
+          {nome:'Calabresa triturada',max:0},{nome:'Carne moída',max:0},{nome:'Carne de Panela',max:0},
+          {nome:'Cebola caramelizada',max:0},{nome:'Filé em Cubos',max:0},{nome:'Frango Desfiado',max:0},
+          {nome:'Frango defumado',max:0},{nome:'Lombo Assado',max:0},{nome:'Mexicana',max:0},
+          {nome:'Mini kibe',max:0},{nome:'Mistura Liquida',max:0},{nome:'Mistura para maionese',max:0},
+          {nome:'Mistura Seca 5 kg',max:0},{nome:'Mistura Seca 15 kg',max:0},{nome:'Molho Gorgonzola',max:0},
+          {nome:'Presunto triturado',max:0},{nome:'Chocolate Branco',max:0}
+        ]
+      },
+      { id: 'cozinha', nome: 'Cozinha', icon: '🧑‍🍳', itens: [
+          {nome:'Açucar 5 kg',max:2},{nome:'Alho frito KG',max:2},{nome:'Brigadeiro Caixas',max:3},
+          {nome:'Café 500 G',max:3},{nome:'Canela KG',max:2},{nome:'Creme de Leite L',max:4},
+          {nome:'Fuba KG',max:40},{nome:'Goiabada Bisnaga',max:3},{nome:'Granulado KG',max:3},
+          {nome:'Kinder ovo',max:4},{nome:'Kinder Bueno CX',max:2},{nome:'Leite Condensado CX',max:30},
+          {nome:'M&Ms KG',max:6},{nome:'Milho Latinha Fardo',max:30},{nome:'Nachos Pacote',max:8},
+          {nome:'Nuttela Balde',max:6},{nome:'Óleo Caixa',max:4},{nome:'Paçoca Caixa',max:2},
+          {nome:'Rolo de sacola',max:2},{nome:'Batata Palha Caixa',max:2},{nome:'Palmito Caixa',max:2},
+          {nome:'Molho de Tomate',max:20},{nome:'Mostarda',max:4},{nome:'Leite Ninho',max:2},
+          {nome:'MUSSARELA PÇ',max:27},{nome:'Requeijão 1,8 kg',max:18},{nome:'Cheddar 1,2 kg',max:6},
+          {nome:'Parmêsão Ralado Kg',max:2},{nome:'GORGONZOLA Peça',max:1},{nome:'OREGANO Pacote',max:2},
+          {nome:'Cream Cheese 1 kg',max:6},{nome:'Lombo Canadense',max:6},{nome:'Sacolina de chupchup',max:4},
+          {nome:'Bombom Ouro Branco',max:4},{nome:'Chocolate branco',max:2},{nome:'Papel Lanche UN',max:2},
+          {nome:'Doce de Leite Caixa',max:3},{nome:'Alho Poro',max:10},{nome:'Trigo kg',max:300},
+          {nome:'Detergente Un',max:20},{nome:'Cloro Galão',max:4},{nome:'Bombril Pacote',max:2},
+          {nome:'Esponja fina pacote',max:2},{nome:'Esponja grossa pct',max:2},{nome:'Limpador Forno',max:2},
+          {nome:'Luva Preta Caixa',max:4},{nome:'Touca Pacote',max:4},{nome:'Ovo de Galinha',max:3}
+        ]
+      },
+      { id: 'frenteloja', nome: 'Frente de Loja', icon: '🏪', itens: [
+          {nome:'Caixa 1',max:0},{nome:'Caixa 2',max:0},{nome:'Caixa 4',max:0},{nome:'Caixa 6',max:0},
+          {nome:'Caixa 8',max:0},{nome:'Caixa 12',max:0},{nome:'Tira P',max:0},{nome:'Tira G',max:0},
+          {nome:'Bandeja P',max:0},{nome:'Bandeja G',max:0},{nome:'Papel Bandeja',max:0},
+          {nome:'Garra 300ml',max:0},{nome:'Garra 1 litro',max:0},
+          {nome:'Barbecue 3,5 L',max:4},{nome:'Copinho Maionese CX',max:2},{nome:'Papel Higienico',max:2},
+          {nome:'Coca 1,5 L',max:16},{nome:'Coca 1,5 l Zero',max:16},{nome:'Coca Lata',max:6},
+          {nome:'Coca Lata Zero',max:6},{nome:'Alcool Liquido',max:10},{nome:'Colherzinha Caixa',max:2},
+          {nome:'Sacola Camiseta 38x48',max:2},{nome:'Canudo',max:2},{nome:'Ketchup sache',max:2},
+          {nome:'Barbecue sache',max:2},{nome:'Guardanapo',max:3},{nome:'Prato Descartavel',max:2},
+          {nome:'KETCHUP 3,5 L',max:4},{nome:'Saco Lixo 100L Fardo',max:2},{nome:'Saco Lixo 200 l Fardo',max:2},
+          {nome:'Papel para maos',max:3},{nome:'Guarana 1,5 L',max:6},{nome:'Agua sem gas',max:15},
+          {nome:'Agua com gas',max:15},{nome:'H2O Limao',max:2},{nome:'H2O Limoneto',max:2},
+          {nome:'Suco de Uva Dellvale',max:6}
+        ]
+      }
+    ];
   },
 
   // ===== LOTES DE ARMAZENAMENTO =====
@@ -1639,6 +1865,62 @@ const DB = {
       entradasHoje:   movs.filter(m => m.tipo === 'entrada' && new Date(m.data).toDateString() === hoje).length,
       saidasHoje:     movs.filter(m => m.tipo === 'saida'   && new Date(m.data).toDateString() === hoje).length,
     };
+  },
+
+  // ===== FUNCIONÁRIOS =====
+  getFuncionarios() {
+    return _getLocal('chef_funcionarios') || [];
+  },
+  saveFuncionarios(data) {
+    _saveLocal('chef_funcionarios', data);
+  },
+  addFuncionario(func) {
+    const funcs = this.getFuncionarios();
+    func.cadastradoEm = new Date().toISOString();
+    funcs.push(func);
+    this.saveFuncionarios(funcs);
+    _saveFirebase('chef_funcionarios', func.id, func);
+    return func;
+  },
+  updateFuncionario(id, updates) {
+    const funcs = this.getFuncionarios();
+    const idx = funcs.findIndex(f => f.id === id);
+    if (idx >= 0) {
+      funcs[idx] = { ...funcs[idx], ...updates, atualizadoEm: new Date().toISOString() };
+      this.saveFuncionarios(funcs);
+      _saveFirebase('chef_funcionarios', id, funcs[idx]);
+      return funcs[idx];
+    }
+    return null;
+  },
+
+  // ===== CONVITES =====
+  getConvites() {
+    return _getLocal('chef_convites') || [];
+  },
+  saveConvites(data) {
+    _saveLocal('chef_convites', data);
+  },
+  addConvite(convite) {
+    const convites = this.getConvites();
+    convites.push(convite);
+    this.saveConvites(convites);
+    _saveFirebase('chef_convites', convite.token, convite);
+    return convite;
+  },
+  updateConvite(token, updates) {
+    const convites = this.getConvites();
+    const idx = convites.findIndex(c => c.token === token);
+    if (idx >= 0) {
+      convites[idx] = { ...convites[idx], ...updates };
+      this.saveConvites(convites);
+      _patchFirebase('chef_convites', convites[idx].token, updates);
+      return convites[idx];
+    }
+    return null;
+  },
+  getConvitePorToken(token) {
+    return this.getConvites().find(c => c.token === token) || null;
   },
 
   // ===== MIGRAÇÃO (localStorage antigo → Firebase) =====
@@ -2174,7 +2456,8 @@ const ProdutosPage = {
   },
 
   renderTable() {
-    let produtos = DB.getProdutos();
+    let produtos = DB.getProdutos()
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
     if (this.filtro) {
       const f = this.filtro.toLowerCase();
       produtos = produtos.filter(p =>
@@ -2245,6 +2528,7 @@ const ProdutosPage = {
           </td>
           <td style="font-size:.8rem;color:var(--text-secondary)">${minimo}/${maximo} ${p.unidade || ''}</td>
           <td>R$ ${parseFloat(p.custo || 0).toFixed(2)}</td>
+          <td>R$ ${parseFloat(p.precoVenda || 0).toFixed(2)}</td>
           <td style="font-size:.82rem">${p.local || '—'}</td>
           <td><span class="badge ${badgeClass}">${status}</span></td>
           <td>
@@ -2269,6 +2553,7 @@ const ProdutosPage = {
             <th>Estoque Atual</th>
             <th>Mín/Máx</th>
             <th>Custo Unit.</th>
+            <th>Preço Venda</th>
             <th>Local</th>
             <th>Status</th>
             <th style="text-align:center">Ações</th>
@@ -2311,7 +2596,7 @@ const ProdutosPage = {
     const produto = id ? DB.getProdutoPorId(id) : null;
     const titulo  = produto ? 'Editar Produto' : 'Novo Produto';
 
-    const categorias    = ['Carnes','Hortifruti','Laticínios','Grãos e Cereais','Condimentos','Bebidas','Embalagens','Higiene/Limpeza','Outros'];
+    const categorias    = ['Recheios','Carnes','Hortifruti','Laticínios','Grãos e Cereais','Condimentos','Bebidas','Embalagens','Higiene/Limpeza','Outros'];
     const unidades      = ['kg','g','L','ml','un','cx','fardo','pct','dz'];
     const locais        = ['Câmara Fria','Câmara Seca','Despensa','Congelador','Prateleira','Adega'];
     const formasEntrega = ['Caixa','Saco','Bandeja','Fardo','Engradado','Galão','Lata','Pacote','Pote','Saco a vácuo','Unidade','Outro'];
@@ -2339,14 +2624,15 @@ const ProdutosPage = {
           </div>
           <div class="form-group">
             <label>Categoria *</label>
-            <select id="pCategoria" required>
+            <select id="pCategoria" required onchange="ProdutosPage.onCategoriaChange(this.value)">
               <option value="">Selecione...</option>
               ${categorias.map(c => `<option value="${c}" ${sel('categoria', c)}>${c}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label>Código Interno</label>
-            <input type="text" id="pCodigoInt" placeholder="Ex: FRA001" value="${val('codigoInterno')}" />
+            <label>Código Interno do Produto * <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400">(usado no EAN-13 da balança)</span></label>
+            <input type="text" id="pCodigoInt" required placeholder="Ex: 150" value="${val('codigoInterno')}" />
+            <span class="form-hint">Digite apenas o número do código — Ex: <code>150</code> → EAN-13 <code>2<u>00150</u>003528X</code></span>
           </div>
           <div class="form-group">
             <label>Código de Barras (EAN)</label>
@@ -2442,9 +2728,18 @@ const ProdutosPage = {
             <input type="number" id="pEstMax" min="0" step="0.01" placeholder="0" value="${val('estoqueMaximo')}" />
           </div>
           ${estInicialHtml}
+          <div class="form-group" id="grpFormMax" style="display:${val('categoria') === 'Recheios' ? 'block' : 'none'}">
+            <label>Máx. Padrão no Formulário de Pedidos (Lojas)</label>
+            <input type="number" id="pFormMax" min="0" step="1" placeholder="0" value="${val('formularioMaximo')}" />
+            <span class="form-hint">Quantidade máxima exibida no inventário das lojas. Pode ser ajustado por loja em "Cfg Estoque Máximo".</span>
+          </div>
           <div class="form-group">
             <label>Custo Unitário (R$)</label>
             <input type="number" id="pCusto" min="0" step="0.01" placeholder="0.00" value="${val('custo')}" />
+          </div>
+          <div class="form-group">
+            <label>Preço de Venda (R$)</label>
+            <input type="number" id="pPrecoVenda" min="0" step="0.01" placeholder="0.00" value="${val('precoVenda')}" />
           </div>
           <div class="form-group">
             <label>Fornecedor Principal</label>
@@ -2469,6 +2764,11 @@ const ProdutosPage = {
     if (produto && produto.temperatura) {
       setTimeout(() => ProdutosPage.onTemperaturaChange(produto.temperatura), 60);
     }
+  },
+
+  onCategoriaChange(categoria) {
+    const grp = document.getElementById('grpFormMax');
+    if (grp) grp.style.display = categoria === 'Recheios' ? 'block' : 'none';
   },
 
   onTemperaturaChange(valor) {
@@ -2542,10 +2842,20 @@ const ProdutosPage = {
       local:           document.getElementById('pLocal').value,
       estoqueMinimo:   parseFloat(document.getElementById('pEstMin').value) || 0,
       estoqueMaximo:   parseFloat(document.getElementById('pEstMax').value) || 0,
+      formularioMaximo: parseFloat(document.getElementById('pFormMax')?.value) || 0,
       custo:           parseFloat(document.getElementById('pCusto').value) || 0,
+      precoVenda:      parseFloat(document.getElementById('pPrecoVenda').value) || 0,
       fornecedor:      document.getElementById('pFornecedor').value.trim(),
       observacoes:     document.getElementById('pObs').value.trim(),
     };
+
+    if (dados.codigoInterno) {
+      const duplicado = DB.getProdutos().find(p => p.codigoInterno === dados.codigoInterno && p.id !== id);
+      if (duplicado) {
+        App.showToast('Código "' + dados.codigoInterno + '" já está em uso por: ' + duplicado.nome, 'warning');
+        return;
+      }
+    }
 
     if (id) {
       DB.updateProduto(id, dados);
@@ -2611,11 +2921,11 @@ const ProdutosPage = {
 
   exportCSV() {
     const produtos = DB.getProdutos();
-    const header   = 'ID,Nome,Categoria,Forma de Entrega,Temperatura,Cod.Interno,Cod.Barras,Unidade,Estoque,Est.Mínimo,Est.Máximo,Custo,Fornecedor,Local';
+    const header   = 'ID,Nome,Categoria,Forma de Entrega,Temperatura,Cod.Interno,Cod.Barras,Unidade,Estoque,Est.Mínimo,Est.Máximo,Custo,Preço Venda,Fornecedor,Local';
     const rows     = produtos.map(p =>
       [p.id, p.nome, p.categoria, p.formaEntrega, p.temperatura,
        p.codigoInterno, p.codigoBarras, p.unidade, p.estoque,
-       p.estoqueMinimo, p.estoqueMaximo, p.custo, p.fornecedor, p.local]
+       p.estoqueMinimo, p.estoqueMaximo, p.custo, p.precoVenda, p.fornecedor, p.local]
         .map(v => `"${v || ''}"`)
         .join(',')
     );
@@ -2627,7 +2937,32 @@ const ProdutosPage = {
     a.click();
   },
 
-  postRender() {}
+  postRender() {
+    this._limparDuplicados();
+  },
+
+  _limparDuplicados() {
+    const produtos = DB.getProdutos();
+    const grupos = {};
+    produtos.forEach(p => {
+      if (!p.codigoInterno) return;
+      if (!grupos[p.codigoInterno]) grupos[p.codigoInterno] = [];
+      grupos[p.codigoInterno].push(p);
+    });
+
+    let removidos = 0;
+    Object.values(grupos).forEach(grupo => {
+      if (grupo.length <= 1) return;
+      // Mantém o mais recente; remove os demais
+      grupo.sort((a, b) => new Date(b.criadoEm || 0) - new Date(a.criadoEm || 0));
+      grupo.slice(1).forEach(p => { DB.deleteProduto(p.id); removidos++; });
+    });
+
+    if (removidos > 0) {
+      App.showToast(removidos + ' produto(s) duplicado(s) removido(s) automaticamente.', 'info');
+      document.getElementById('produtosTableBody').innerHTML = this.renderTable();
+    }
+  },
 };
 
 
@@ -2663,14 +2998,16 @@ const FichasPage = {
 
   renderFichaCard(f) {
     const custo = this.calcularCusto(f);
+    const produto = f.produtoId ? DB.getProdutoPorId(f.produtoId) : null;
     return `
       <div class="card" style="cursor:default;transition:all .2s" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
-          <div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
             <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary)">${f.nome}</h3>
+            ${produto ? `<div style="font-size:.75rem;color:var(--accent);font-weight:600;margin-top:2px">📦 ${produto.nome}</div>` : ''}
             <span class="badge badge-info" style="margin-top:4px">${f.categoria||'Geral'}</span>
           </div>
-          <div style="display:flex;gap:4px">
+          <div style="display:flex;gap:4px;flex-shrink:0;margin-left:8px">
             <button class="btn btn-secondary btn-sm" onclick="FichasPage.verDetalhes('${f.id}')" title="Ver">👁️</button>
             <button class="btn btn-secondary btn-sm" onclick="FichasPage.openModal('${f.id}')" title="Editar">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="FichasPage.deletar('${f.id}')" title="Excluir">🗑️</button>
@@ -2710,20 +3047,96 @@ const FichasPage = {
     return { total, porPorcao: rendimento > 0 ? total / rendimento : 0 };
   },
 
+  // ── Ponto de entrada: nova ficha abre seletor de produto; edição abre form direto ──
   openModal(id = null) {
-    const ficha = id ? DB.getFichas().find(f => f.id === id) : null;
+    if (!id) {
+      this._abrirSeletorProduto();
+    } else {
+      const ficha = DB.getFichas().find(f => f.id === id);
+      this._abrirFormFicha(ficha, null);
+    }
+  },
+
+  // ── Passo 1: escolher o produto ao qual a ficha pertence ──
+  _abrirSeletorProduto() {
+    const produtos = DB.getProdutos()
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+    if (produtos.length === 0) {
+      App.showToast('Cadastre pelo menos um produto antes de criar uma ficha técnica.', 'warning');
+      return;
+    }
+
+    const itens = produtos.map(p => `
+      <div class="card" style="padding:12px;cursor:pointer;transition:border-color .15s,background .15s"
+           data-busca="${p.nome.toLowerCase()} ${(p.categoria||'').toLowerCase()}"
+           onclick="FichasPage._selecionarProdutoFicha('${p.id}')"
+           onmouseenter="this.style.borderColor='var(--accent)';this.style.background='var(--bg-hover)'"
+           onmouseleave="this.style.borderColor='var(--border)';this.style.background=''">
+        <div style="font-weight:700;font-size:.9rem;color:var(--text-primary)">${p.nome}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${p.categoria||'—'} • ${p.unidade}</div>
+      </div>
+    `).join('');
+
+    const body = `
+      <div style="margin-bottom:12px">
+        <input type="text" id="buscaProdFicha" class="input-form"
+               placeholder="🔍 Buscar produto..."
+               oninput="FichasPage._filtrarSeletor()"
+               style="width:100%" />
+      </div>
+      <div id="listaProdsFicha"
+           style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:430px;overflow-y:auto">
+        ${itens}
+      </div>
+    `;
+
+    App.openModal('Selecionar Produto para a Ficha Técnica', body, [
+      { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' }
+    ], 'modal-lg');
+  },
+
+  _filtrarSeletor() {
+    const termo = (document.getElementById('buscaProdFicha')?.value || '').toLowerCase();
+    document.querySelectorAll('#listaProdsFicha > div').forEach(el => {
+      el.style.display = el.dataset.busca.includes(termo) ? '' : 'none';
+    });
+  },
+
+  _selecionarProdutoFicha(produtoId) {
+    App.closeModal();
+    setTimeout(() => this._abrirFormFicha(null, produtoId), 150);
+  },
+
+  // ── Passo 2: formulário completo da ficha, com produto vinculado no topo ──
+  _abrirFormFicha(ficha, produtoId) {
     this.ingredientesTmp = ficha ? JSON.parse(JSON.stringify(ficha.ingredientes || [])) : [];
+
+    const pId = produtoId || ficha?.produtoId || '';
+    const produto = pId ? DB.getProdutoPorId(pId) : null;
 
     const categorias = ['Sopas', 'Proteínas', 'Acompanhamentos', 'Saladas', 'Sobremesas', 'Bebidas', 'Lanches', 'Geral'];
     const unidades = ['kg', 'g', 'L', 'ml', 'un', 'colher', 'xícara', 'pitada'];
     const produtos = DB.getProdutos();
 
     const body = `
-      <form id="formFicha" onsubmit="FichasPage.salvar(event, '${id||''}')">
+      <form id="formFicha" onsubmit="FichasPage.salvar(event, '${ficha?.id||''}')">
+
+        <div style="background:var(--bg-input);border:1px solid var(--accent);border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px">
+          <div style="font-size:1.6rem;line-height:1">📦</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Produto vinculado</div>
+            <div style="font-weight:700;font-size:1rem;color:var(--text-primary);margin-top:1px">${produto?.nome || '<em style="color:var(--text-muted);font-weight:400">Nenhum produto selecionado</em>'}</div>
+            ${produto ? `<div style="font-size:.75rem;color:var(--text-muted)">${produto.categoria||''} ${produto.unidade ? '• '+produto.unidade : ''}</div>` : ''}
+          </div>
+          ${ficha ? `<button type="button" class="btn btn-secondary btn-sm" onclick="App.closeModal();setTimeout(()=>FichasPage._abrirSeletorParaTrocar('${ficha.id}'),150)">Trocar</button>` : ''}
+          <input type="hidden" id="fProdutoId" value="${pId}" />
+        </div>
+
         <div class="form-grid">
           <div class="form-group">
             <label>Nome da Ficha *</label>
-            <input type="text" id="fNome" required placeholder="Ex: Frango ao Molho" value="${ficha?.nome||''}" />
+            <input type="text" id="fNome" required placeholder="Ex: Frango ao Molho" value="${ficha?.nome || produto?.nome || ''}" />
           </div>
           <div class="form-group">
             <label>Categoria</label>
@@ -2745,7 +3158,7 @@ const FichasPage = {
           </div>
         </div>
 
-        <div style="margin: 16px 0">
+        <div style="margin:16px 0">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <label style="margin:0">Ingredientes</label>
             <button type="button" class="btn btn-secondary btn-sm" onclick="FichasPage.adicionarIngrediente()">+ Adicionar</button>
@@ -2771,6 +3184,55 @@ const FichasPage = {
       { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' },
       { label: 'Salvar', class: 'btn-primary', action: `document.getElementById('formFicha').requestSubmit()` }
     ], 'modal-lg');
+  },
+
+  // Permite trocar o produto vinculado a uma ficha existente
+  _abrirSeletorParaTrocar(fichaId) {
+    const produtos = DB.getProdutos()
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+    const itens = produtos.map(p => `
+      <div class="card" style="padding:12px;cursor:pointer;transition:border-color .15s,background .15s"
+           data-busca="${p.nome.toLowerCase()} ${(p.categoria||'').toLowerCase()}"
+           onclick="FichasPage._trocarProdutoFicha('${fichaId}','${p.id}')"
+           onmouseenter="this.style.borderColor='var(--accent)';this.style.background='var(--bg-hover)'"
+           onmouseleave="this.style.borderColor='var(--border)';this.style.background=''">
+        <div style="font-weight:700;font-size:.9rem">${p.nome}</div>
+        <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px">${p.categoria||'—'} • ${p.unidade}</div>
+      </div>
+    `).join('');
+
+    const body = `
+      <div style="margin-bottom:12px">
+        <input type="text" id="buscaProdFicha2" class="input-form"
+               placeholder="🔍 Buscar produto..."
+               oninput="FichasPage._filtrarSeletor2()"
+               style="width:100%" />
+      </div>
+      <div id="listaProdsFicha2"
+           style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:430px;overflow-y:auto">
+        ${itens}
+      </div>
+    `;
+
+    App.openModal('Trocar Produto Vinculado', body, [
+      { label: 'Cancelar', class: 'btn-secondary', action: `App.closeModal();setTimeout(()=>FichasPage.openModal('${fichaId}'),150)` }
+    ], 'modal-lg');
+  },
+
+  _filtrarSeletor2() {
+    const termo = (document.getElementById('buscaProdFicha2')?.value || '').toLowerCase();
+    document.querySelectorAll('#listaProdsFicha2 > div').forEach(el => {
+      el.style.display = el.dataset.busca.includes(termo) ? '' : 'none';
+    });
+  },
+
+  _trocarProdutoFicha(fichaId, produtoId) {
+    App.closeModal();
+    setTimeout(() => {
+      const ficha = DB.getFichas().find(f => f.id === fichaId);
+      if (ficha) this._abrirFormFicha(ficha, produtoId);
+    }, 150);
   },
 
   renderIngredientes(produtos, unidades) {
@@ -2814,6 +3276,7 @@ const FichasPage = {
   salvar(e, id) {
     e.preventDefault();
     const dados = {
+      produtoId: document.getElementById('fProdutoId')?.value || '',
       nome: document.getElementById('fNome').value.trim(),
       categoria: document.getElementById('fCategoria').value,
       rendimento: parseFloat(document.getElementById('fRendimento').value) || 1,
@@ -2847,8 +3310,20 @@ const FichasPage = {
     const f = DB.getFichas().find(fi => fi.id === id);
     if (!f) return;
     const custo = this.calcularCusto(f);
+    const produto = f.produtoId ? DB.getProdutoPorId(f.produtoId) : null;
 
     const body = `
+      ${produto ? `
+        <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.2rem">📦</span>
+          <div>
+            <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Produto vinculado</div>
+            <div style="font-weight:700;font-size:.9rem">${produto.nome}</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">${produto.categoria||''} ${produto.unidade ? '• '+produto.unidade : ''}</div>
+          </div>
+        </div>
+      ` : ''}
+
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">
         <div class="card" style="text-align:center">
           <div style="font-size:1.5rem;font-weight:800;color:var(--accent)">${f.rendimento}</div>
@@ -4777,15 +5252,40 @@ window.PedidosPage = {
     "Mistura Seca 5 kg", "Mistura Seca 15 kg", "Molho Gorgonzola", "Presunto triturado", "Chocolate Branco",
     "Caixa 1", "Caixa 2", "Caixa 4", "Caixa 6", "Caixa 8", "Caixa 12", 
     "Tira P", "Tira G", "Bandeja P", "Bandeja G", "Papel Bandeja", 
-    "Garra 300ml", "Garra 1 litro"
+    "Garra 300ml", "Garra 1 litro",
+    "Coca-Cola 2L", "Coca-Cola Zero 2L", "Guaraná Antarctica 2L", "Fanta Laranja 2L", "Fanta Uva 2L", "Sprite 2L", "Kuat 2L",
+    "Coca-Cola Lata", "Coca-Cola Zero Lata", "Guaraná Lata", "Fanta Lata", "Sprite Lata", "H2OH! Limão",
+    "Água sem gás 500ml", "Água com gás 500ml", "Suco Del Valle 1L", "Tônica Lata",
+    "Multiuso Caixa", "Detergente Caixa", "Cloro Galão", "Sabão pó CX 500G", "Bombril Pacote",
+    "Esponja fina pacote", "Esponja grossa UN", "Limpador Forno", "Saco Lixo 100L Fardo",
+    "Saco Lixo 200 l Fardo", "Luva Preta Caixa", "Touca Pacote", "Papel para mãos"
   ],
 
   LOJAS_FIXAS: ["VALPARAISO", "VITORIA", "ITAPARICA", "GUARAPARI", "LINHARES", "ITAPOÃ", "Outro"],
 
+  LOJAS_CORES: {
+    'GUARAPARI': { bg: '#111111', text: '#ffffff' },
+    'VITORIA':   { bg: '#1d4ed8', text: '#ffffff' },
+    'ITAPOÃ':    { bg: '#ea580c', text: '#ffffff' },
+    'ITAPOA':    { bg: '#ea580c', text: '#ffffff' },
+    'ITAPARICA': { bg: '#16a34a', text: '#ffffff' },
+    'VALPARAISO': { bg: '#eab308', text: '#000000' },
+  },
+
+  _corLoja(loja) {
+    return this.LOJAS_CORES[(loja || '').toUpperCase()] || { bg: '#6b7280', text: '#ffffff' };
+  },
+
+  _badgeLoja(loja) {
+    const c = this._corLoja(loja);
+    return `<span style="display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-size:.85rem;letter-spacing:.03em;background:${c.bg};color:${c.text}">${loja}</span>`;
+  },
+
   render() {
-    if (this.activeSeparacao) {
-      return this.renderSeparacaoView();
-    }
+    // Limpa itens expirados a cada abertura da aba
+    DB.limparLixeiraExpirada();
+    if (this.activeSeparacao) return this.renderSeparacaoView();
+    if (this.viewLixeira) return this.renderLixeiraView();
     return this.renderListView();
   },
 
@@ -4825,10 +5325,12 @@ window.PedidosPage = {
           acoes = `
             <button class="btn btn-secondary btn-sm" onclick="PedidosPage.imprimirRomaneio('${p.id}')">📄 Romaneio</button>
             <button class="btn btn-primary btn-sm" onclick="PedidosPage.iniciarSeparacao('${p.id}')">📦 Conferir e Separar</button>
+            <button class="btn btn-sm" onclick="PedidosPage.excluirPedido('${p.id}')" style="background:var(--danger);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;margin-left:4px" title="Excluir pedido">🗑️</button>
           `;
         } else {
           acoes = `
             <button class="btn btn-secondary btn-sm" onclick="PedidosPage.imprimirRomaneio('${p.id}')">📄 Ver Romaneio</button>
+            <button class="btn btn-sm" onclick="PedidosPage.excluirPedido('${p.id}')" style="background:var(--danger);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;margin-left:4px" title="Excluir pedido">🗑️</button>
           `;
         }
 
@@ -4845,14 +5347,19 @@ window.PedidosPage = {
             });
         }
 
-        // Se for 0 envios, alertamos visualmente
-        let volStr = `${enviosNecessarios} envios (calculado)`;
-        if(enviosNecessarios === 0 && p.status === 'pendente') volStr = '<span style="color:var(--danger)">Estoque cheio / Sem metas</span>';
+        let volStr;
+        if (p.tipoPedido === 'direto') {
+          const qtdItens = (p.itens || []).filter(i => Number(i.quantidade) > 0).length;
+          volStr = `<span style="color:var(--info)">${qtdItens} iten(s) solicitados diretamente</span>`;
+        } else {
+          volStr = `${enviosNecessarios} envios (calculado)`;
+          if (enviosNecessarios === 0 && p.status === 'pendente') volStr = '<span style="color:var(--danger)">Estoque cheio / Sem estoque máximo</span>';
+        }
 
         rows += `
           <tr>
             <td>#${p.id.substring(3, 9)}</td>
-            <td><strong>${p.loja}</strong></td>
+            <td>${this._badgeLoja(p.loja)}</td>
             <td>${dataStr}</td>
             <td>${statusBadge}</td>
             <td>${volStr}</td>
@@ -4869,7 +5376,14 @@ window.PedidosPage = {
             <h2>🛒 Inventários / Romaneios de Loja</h2>
             <p>Gerencie as solicitações feitas pelas filiais baseadas no Estoque Máximo, emita romaneios e faça baixa via scanner.</p>
           </div>
-          <button class="btn btn-outline" onclick="PedidosPage.abrirModalMetas()">⚙️ Cfg Estoque Máximo Lojas</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="PedidosPage.abrirModalCatalogo()">📋 Itens do Formulário</button>
+            <button class="btn btn-outline" onclick="PedidosPage.abrirModalMetas()">⚙️ Cfg Estoque Máximo Lojas</button>
+            <button class="btn btn-outline" onclick="PedidosPage.abrirLixeira()" style="position:relative">
+              🗑️ Lixeira
+              ${DB.getLixeira().length > 0 ? `<span style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;font-size:.68rem;display:flex;align-items:center;justify-content:center;font-weight:700">${DB.getLixeira().length}</span>` : ''}
+            </button>
+          </div>
         </div>
         <div class="card-body" style="overflow-x:auto;">
           <table class="table">
@@ -4890,13 +5404,327 @@ window.PedidosPage = {
     `;
   },
 
+  excluirPedido(id) {
+    const pedidos = DB.getPedidos() || [];
+    const pedido  = pedidos.find(p => p.id === id);
+    if (!pedido) return;
+    const label = `#${id.substring(3, 9)} — ${pedido.loja}`;
+    if (!confirm(`Mover o pedido ${label} para a Lixeira?\n\nVocê poderá restaurá-lo por até 60 meses.`)) return;
+    DB.deletePedido(id);
+    App.showToast(`🗑️ Pedido ${label} movido para a Lixeira.`, 'success');
+    App.navigateTo('pedidos');
+  },
+
+  abrirLixeira() {
+    this.viewLixeira = true;
+    App.navigateTo('pedidos');
+  },
+
+  fecharLixeira() {
+    this.viewLixeira = false;
+    App.navigateTo('pedidos');
+  },
+
+  restaurarPedido(id) {
+    if (!confirm('Restaurar este pedido para a fila de separação?')) return;
+    DB.restaurarDaLixeira(id);
+    App.showToast('♻️ Pedido restaurado com sucesso!', 'success');
+    App.navigateTo('pedidos');
+  },
+
+  excluirPermanente(id) {
+    const item = DB.getLixeira().find(i => i.id === id);
+    if (!item) return;
+    const label = `#${id.substring(3,9)} — ${item.loja}`;
+    if (!confirm(`ATENÇÃO: Excluir PERMANENTEMENTE o pedido ${label}?\n\nEsta ação NÃO pode ser desfeita.`)) return;
+    DB.excluirDaLixeiraPermanentemente(id);
+    App.showToast('❌ Pedido excluído permanentemente.', 'error');
+    App.navigateTo('pedidos');
+  },
+
+  renderLixeiraView() {
+    const lixeira = DB.getLixeira().sort((a,b) => new Date(b._deletadoEm) - new Date(a._deletadoEm));
+
+    let rows = '';
+    if (lixeira.length === 0) {
+      rows = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">🗑️ Lixeira vazia</td></tr>`;
+    } else {
+      lixeira.forEach(p => {
+        const deletadoEm = new Date(p._deletadoEm).toLocaleString('pt-BR');
+        const expiraEm   = new Date(p._expiraEm);
+        const diasRestantes = Math.ceil((expiraEm - new Date()) / (1000*60*60*24));
+        const expiraLabel = diasRestantes > 0
+          ? `<span style="font-size:.75rem;color:var(--text-muted)">${diasRestantes} dias restantes</span>`
+          : `<span style="font-size:.75rem;color:var(--danger)">Expirado</span>`;
+
+        rows += `
+          <tr style="opacity:.85">
+            <td>#${p.id.substring(3,9)}</td>
+            <td><strong>${p.loja}</strong></td>
+            <td>${deletadoEm}</td>
+            <td><span class="badge" style="background:var(--bg-secondary);color:var(--text-muted)">${p.status}</span></td>
+            <td>${expiraLabel}</td>
+            <td style="text-align:right">
+              <button class="btn btn-secondary btn-sm" onclick="PedidosPage.restaurarPedido('${p.id}')">♻️ Restaurar</button>
+              <button class="btn btn-sm" onclick="PedidosPage.excluirPermanente('${p.id}')" style="background:var(--danger);color:#fff;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;margin-left:4px">❌ Excluir</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    return `
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h2>🗑️ Lixeira de Pedidos</h2>
+            <p>Pedidos excluídos são mantidos por <strong>60 meses</strong> antes de serem apagados definitivamente.</p>
+          </div>
+          <button class="btn btn-outline" onclick="PedidosPage.fecharLixeira()">← Voltar aos Pedidos</button>
+        </div>
+        <div class="card-body" style="overflow-x:auto">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Loja</th>
+                <th>Excluído em</th>
+                <th>Status original</th>
+                <th>Expira em</th>
+                <th style="text-align:right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  },
+
+  // ===== GERENCIAMENTO DO CATÁLOGO DE ITENS DO FORMULÁRIO =====
+  _catTab: 0, // ííndice da aba ativa no moídal de catálogo
+
+  abrirModalCatalogo() {
+    this._catTab = 0;
+    App.openModal('📋 Itens do Formulário de Pedidos', this._renderCatalogoBody(), [
+      { label: 'Fechar', class: 'btn-secondary', action: 'App.closeModal()' },
+      { label: '💾 Salvar Tudo', class: 'btn-primary', action: 'PedidosPage.salvarCatalogo()' }
+    ], 'modal-lg');
+  },
+
+  restaurarCatalogoPadrao() {
+    if (!confirm('Restaurar o catalogo para os itens padrao?\nTodos os itens customizados serao perdidos.')) return;
+    DB.saveCatalogoPedido(DB._catalogoPadrao());
+    this._catTab = 0;
+    const modalBodyEl = document.getElementById('modalBody');
+    if (modalBodyEl) modalBodyEl.innerHTML = this._renderCatalogoBody();
+    App.showToast('Catalogo restaurado para o padrao!', 'success');
+  },
+
+  _renderCatalogoBody() {
+    const cats = DB.getCatalogoPedido();
+
+    // Abas de categorias
+    const tabs = cats.map((c, i) => `
+      <button type="button"
+        id="catTab_${i}"
+        onclick="PedidosPage._trocarCatTab(${i})"
+        style="padding:8px 18px; border:none; border-radius:8px 8px 0 0; cursor:pointer; font-weight:600; font-size:.9rem; font-family:inherit;
+               background:${i===this._catTab?'var(--bg-card)':'var(--bg-secondary)'};
+               color:${i===this._catTab?'var(--accent)':'var(--text-muted)'};
+               border-bottom: ${i===this._catTab?'2px solid var(--accent)':'2px solid transparent'}">
+        ${c.icon} ${c.nome}
+      </button>
+    `).join('');
+
+    // Painel da aba ativa
+    const cat = cats[this._catTab];
+
+    // Recheios: somente leitura — gerenciado pelo cadastro de produtos
+    if (cat.id === 'insumos') {
+      const temProdutos = DB.getProdutos().some(p => p.categoria === 'Recheios');
+      const linhasRO = cat.itens.map(item => `
+        <tr>
+          <td style="padding:7px 6px;font-size:.9rem">${item.nome}</td>
+          <td style="padding:7px 6px;text-align:center;font-size:.88rem;color:var(--text-muted)">${item.max || 0}</td>
+          <td style="padding:7px 6px;font-size:.85rem;color:var(--text-muted)">${item.fornecedor || '—'}</td>
+        </tr>
+      `).join('');
+
+      const painel = `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:20px">
+          <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:14px 16px;margin-bottom:16px;font-size:.88rem;color:var(--text-secondary)">
+            <strong style="color:var(--info)">Gerenciado pelo Cadastro de Produtos</strong><br>
+            Os Recheios são derivados automaticamente dos produtos com categoria <strong>"Recheios"</strong>. Para editar, adicionar ou remover itens, use a aba <strong>Produtos</strong> do menu principal.
+            ${!temProdutos ? `<br><br><button onclick="PedidosPage.migrarRecheiosParaERP()" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:8px 18px;font-weight:700;cursor:pointer;font-size:.88rem;margin-top:4px">⬆️ Importar itens atuais para o ERP</button>` : ''}
+          </div>
+          <div style="max-height:42vh;overflow-y:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead><tr style="font-size:.78rem;color:var(--text-muted)">
+                <th style="padding:4px 6px;text-align:left">Item</th>
+                <th style="padding:4px 6px;text-align:center">Máx. Padrão</th>
+                <th style="padding:4px 6px;text-align:left">Fornecedor</th>
+              </tr></thead>
+              <tbody>${linhasRO || '<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-muted)">Nenhum produto com categoria Recheios cadastrado ainda.</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      return `<div style="margin-bottom:-1px;display:flex;gap:4px;flex-wrap:wrap">${tabs}</div>${painel}`;
+    }
+
+    const _lojaAbbr = {VALPARAISO:'VALP',VITORIA:'VIT',ITAPARICA:'ITPAR',GUARAPARI:'GUAR',LINHARES:'LIN','ITAPOÃ':'ITPOA',Outro:'OUT'};
+    const _lojaPills = (item, idx) => this.LOJAS_FIXAS.map((l, li) => {
+      const checked = (item.lojas || []).includes(l);
+      return `<label style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;border:1px solid ${checked?'rgba(59,130,246,.45)':'var(--border)'};background:${checked?'rgba(59,130,246,.1)':'var(--bg-secondary)'};color:${checked?'var(--info)':'var(--text-muted)'};transition:all .1s">
+        <input type="checkbox" id="catLoja_${idx}_${li}" style="width:11px;height:11px;cursor:pointer;accent-color:var(--info)" ${checked?'checked':''}> ${_lojaAbbr[l]||l}
+      </label>`;
+    }).join('');
+
+    const linhas = cat.itens.map((item, idx) => `
+      <tr id="catRow_${idx}">
+        <td style="padding:8px 6px">
+          <input type="text" class="input-form" style="padding:6px 10px;font-size:.88rem"
+            id="catNome_${idx}" value="${item.nome.replace(/"/g,'&quot;')}" />
+        </td>
+        <td style="padding:8px 6px; width:80px">
+          <input type="number" class="input-form" style="padding:6px;text-align:center;font-size:.88rem"
+            id="catMax_${idx}" value="${item.max}" min="0" />
+        </td>
+        <td style="padding:8px 6px">
+          <input type="text" class="input-form" style="padding:6px 10px;font-size:.88rem"
+            id="catForn_${idx}" value="${(item.fornecedor||'').replace(/"/g,'&quot;')}" placeholder="Fornecedor(es)..." />
+        </td>
+        <td style="padding:8px 6px;min-width:220px">
+          <div style="display:flex;flex-wrap:wrap;gap:4px">${_lojaPills(item, idx)}</div>
+        </td>
+        <td style="padding:8px 6px; width:40px; text-align:center">
+          <button type="button" onclick="PedidosPage._deletarItemCatalogo(${idx})"
+            style="background:var(--danger);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.85rem"
+            title="Remover item">✕</button>
+        </td>
+      </tr>
+    `).join('');
+
+    const painel = `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:16px;">
+        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">
+          ${cat.itens.length} itens — marque as lojas em que cada item deve aparecer no formulário. <strong>Sem nenhuma marcada = aparece em todas.</strong>
+        </div>
+        <div style="max-height:45vh;overflow:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:700px">
+            <thead>
+              <tr style="font-size:.75rem;color:var(--text-muted);">
+                <th style="padding:4px 6px;text-align:left">Nome do Item</th>
+                <th style="padding:4px 6px;text-align:center">Máx.</th>
+                <th style="padding:4px 6px;text-align:left">Fornecedor(es)</th>
+                <th style="padding:4px 6px;text-align:left">Lojas que recebem este item</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${linhas || '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-muted)">Nenhum item cadastrado</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border)">
+          <input type="text" class="input-form" id="novoItemNome" placeholder="Nome do novo item..." style="flex:2;min-width:150px;padding:8px 12px;font-size:.9rem" />
+          <input type="number" class="input-form" id="novoItemMax" placeholder="Máx" min="0" value="0" style="width:70px;padding:8px;text-align:center;font-size:.9rem" />
+          <input type="text" class="input-form" id="novoItemForn" placeholder="Fornecedor(es)..." style="flex:2;min-width:150px;padding:8px 12px;font-size:.9rem" />
+          <button type="button" onclick="PedidosPage._adicionarItemCatalogo()"
+            style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-weight:700;white-space:nowrap"
+          >+ Adicionar</button>
+        </div>
+      </div>
+    `;
+
+    return `
+      <div style="margin-bottom:-1px;display:flex;gap:4px;flex-wrap:wrap">${tabs}</div>
+      ${painel}
+    `;
+  },
+
+  _trocarCatTab(idx) {
+    // Persiste edições da aba atual antes de trocar
+    this._coletarEdicoesDaAba();
+    this._catTab = idx;
+    // Re-renderiza só o corpo do moídal sem fechar
+    const modalBodyEl = document.getElementById('modalBody');
+    if (modalBodyEl) modalBodyEl.innerHTML = this._renderCatalogoBody();
+  },
+
+  _coletarEdicoesDaAba() {
+    const cats = DB.getCatalogoPedido();
+    const cat  = cats[this._catTab];
+    if (!cat || cat.id === 'insumos') return; // Recheios é somente leitura
+    const newItens = [];
+    cat.itens.forEach((_, idx) => {
+      const nEl = document.getElementById('catNome_' + idx);
+      const mEl = document.getElementById('catMax_'  + idx);
+      const fEl = document.getElementById('catForn_' + idx);
+      if (nEl) {
+        const nome = nEl.value.trim();
+        if (nome) {
+          const lojas = this.LOJAS_FIXAS.filter((_, li) => {
+            const cb = document.getElementById(`catLoja_${idx}_${li}`);
+            return cb && cb.checked;
+          });
+          newItens.push({ nome, max: parseInt(mEl?.value) || 0, fornecedor: fEl?.value.trim() || '', lojas });
+        }
+      }
+    });
+    // Reordena alfabéticamente após edição
+    newItens.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    cat.itens = newItens;
+    DB.saveCatalogoPedido(cats);
+  },
+
+  _adicionarItemCatalogo() {
+    const nomeEl = document.getElementById('novoItemNome');
+    const maxEl  = document.getElementById('novoItemMax');
+    const nome   = (nomeEl?.value || '').trim();
+    if (!nome) { App.showToast('Digite o nome do item!', 'warning'); return; }
+
+    const fornEl = document.getElementById('novoItemForn');
+    this._coletarEdicoesDaAba();
+    const cats = DB.getCatalogoPedido();
+    cats[this._catTab].itens.push({ nome, max: parseInt(maxEl?.value) || 0, fornecedor: fornEl?.value.trim() || '', lojas: [] });
+    // Mantém ordem alfabética
+    cats[this._catTab].itens.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    DB.saveCatalogoPedido(cats);
+
+    const modalBodyEl = document.getElementById('modalBody');
+    if (modalBodyEl) modalBodyEl.innerHTML = this._renderCatalogoBody();
+    App.showToast(`✅ "${nome}" adicionado em ordem alfabética!`, 'success');
+  },
+
+  _deletarItemCatalogo(idx) {
+    this._coletarEdicoesDaAba();
+    const cats = DB.getCatalogoPedido();
+    const item = cats[this._catTab].itens[idx];
+    if (!item) return;
+    if (!confirm(`Remover "${item.nome}" da categoria?`)) return;
+    cats[this._catTab].itens.splice(idx, 1);
+    DB.saveCatalogoPedido(cats);
+    const modalBodyEl = document.getElementById('modalBody');
+    if (modalBodyEl) modalBodyEl.innerHTML = this._renderCatalogoBody();
+    App.showToast(`🗑️ Item removido!`, 'success');
+  },
+
+  salvarCatalogo() {
+    this._coletarEdicoesDaAba();
+    // Salva apenas as categorias não-Recheios (Recheios é gerenciado pelo cadastro de produtos)
+    const cats = DB.getCatalogoPedido().filter(c => c.id !== 'insumos');
+    DB.saveCatalogoPedido(cats);
+    App.showToast('Catalogo salvo e sincronizado!', 'success');
+    App.closeModal();
+  },
+
   // ===== CONFIGURAÇÃO DE METAS (PAR-LEVEL) =====
   abrirModalMetas() {
       const lojasOpts = this.LOJAS_FIXAS.map(l => `<option value="${l}">${l}</option>`).join('');
       
       const body = `
         <div class="form-group" style="margin-bottom:20px;">
-          <label>Selecione a Loja para Configurar a Meta Máxima (Teto de Reposição)</label>
+          <label>Selecione a Loja para Configurar o Estoque Máximo</label>
           <select id="selLojaMeta" class="input-form" onchange="PedidosPage.carregarInputsMeta(this.value)">
             <option value="">Selecione...</option>
             ${lojasOpts}
@@ -4909,9 +5737,9 @@ window.PedidosPage = {
         </div>
       `;
 
-      App.openModal('⚙️ Configuração de Reposição por Nível Par (Par-Level)', body, [
+      App.openModal('⚙️ Configurar Estoque Máximo por Loja', body, [
           { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' },
-          { label: 'Salvar Metas', class: 'btn-primary', action: 'PedidosPage.salvarMetasLoja()' },
+          { label: 'Salvar Estoque Máximo', class: 'btn-primary', action: 'PedidosPage.salvarMetasLoja()' },
       ], 'modal-lg');
   },
 
@@ -4926,17 +5754,37 @@ window.PedidosPage = {
       const metaDaLoja = metasDB.find(m => m.loja === lojaStr);
       const confData = metaDaLoja ? metaDaLoja.itens : {};
 
+      // Busca itens direto do catálogo dinâmico (mesmo que o formulário de pedidos)
+      const catalogo = DB.getCatalogoPedido();
       let html = '';
-      this.ITENS_FIXOS.forEach(item => {
-          const val = confData[item] || 0;
+
+      catalogo.forEach(cat => {
+          // Título da categoria como separador visual
           html += `
-            <div style="background:var(--bg-secondary); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-               <label style="margin:0; font-size:0.9rem">${item}</label>
-               <input type="number" min="0" data-item="${item}" class="input-meta" value="${val}" style="width:70px; text-align:center; padding:5px; border-radius:4px; border:1px solid var(--border); background:var(--bg-primary); color:var(--text-primary);" />
+            <div style="grid-column:1/-1; padding:6px 0 2px; margin-top:8px; border-bottom:1px solid var(--border)">
+              <span style="font-size:.75rem; font-weight:700; color:var(--accent); letter-spacing:.06em; text-transform:uppercase">
+                ${cat.icon} ${cat.nome}
+              </span>
             </div>
           `;
+
+          // Itens da categoria em ordem alfabética
+          const itensOrdenados = [...cat.itens].sort((a, b) =>
+            (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' })
+          );
+
+          itensOrdenados.forEach(item => {
+              const nome = typeof item === 'object' ? item.nome : item;
+              const val  = confData[nome] || 0;
+              html += `
+                <div style="background:var(--bg-secondary); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                   <label style="margin:0; font-size:0.9rem">${nome}</label>
+                   <input type="number" min="0" data-item="${nome}" class="input-meta" value="${val}" style="width:70px; text-align:center; padding:5px; border-radius:4px; border:1px solid var(--border); background:var(--bg-primary); color:var(--text-primary);" />
+                </div>
+              `;
+          });
       });
-      
+
       document.getElementById('metasGrid').innerHTML = html;
       document.getElementById('metasContainer').style.display = 'block';
   },
@@ -4954,36 +5802,44 @@ window.PedidosPage = {
       });
 
       DB.updateMeta(lojaStr, objParams);
-      App.showToast(`✅ Metas atualizadas para ${lojaStr}!`, 'success');
+      App.showToast(`✅ Estoque máximo atualizado para ${lojaStr}!`, 'success');
       App.closeModal();
       App.navigateTo('pedidos'); // atualiza calculos visuais
   },
 
   // ===== LÓGICA DE ROMANEIO (CÁLCULO E INIMPRESSÃO) =====
   calcularItensAEnviar(pedido) {
+      // Modo direto: a loja já informou a quantidade que quer receber
+      if (pedido.tipoPedido === 'direto') {
+          return pedido.itens
+              .filter(i => Number(i.quantidade || 0) > 0)
+              .map(i => ({
+                  nome:          i.nome,
+                  estoqueNaLoja: null, // não se aplica no modo direto
+                  quantidade:    Number(i.quantidade),
+                  separado:      i.separado || 0
+              }));
+      }
+
+      // Modo inventário: calcula pelo par-level (max - estoque atual)
       const metas = DB.getMetas();
       const metaDaLoja = metas.find(m => m.loja === pedido.loja);
       const limites = metaDaLoja ? metaDaLoja.itens : {};
 
       const itensRepor = [];
-
       pedido.itens.forEach(i => {
           const limite = Number(limites[i.nome] || 0);
-          const estoqueAtual = Number(i.quantidade || 0); // i.quantidade é o ESTOQUE que o gerente digitou!
-          
-          let aMandar = limite - estoqueAtual;
-          
-          if(aMandar > 0) {
-              // Copiamos os dados com aMandar como a NOVA aQuantidade verdadeira pro ERP trabalhar
+          const estoqueAtual = Number(i.quantidade || 0);
+          const aMandar = limite - estoqueAtual;
+          if (aMandar > 0) {
               itensRepor.push({
                   nome: i.nome,
                   estoqueNaLoja: estoqueAtual,
-                  quantidade: aMandar, // Overrides pra facilitação nas baixas
+                  quantidade: aMandar,
                   separado: i.separado || 0
               });
           }
       });
-
       return itensRepor;
   },
 
@@ -5011,7 +5867,7 @@ window.PedidosPage = {
         return `
             <div class="card" style="max-width:800px; margin:0 auto; padding:40px; text-align:center">
                 <h2>Não há itens para separar!</h2>
-                <p style="color:var(--text-muted)">O estoque relatado pelo gerente da loja ${pedido.loja} já atingiu ou excedeu as *Metas Máximas* configuradas para essa loja. Zero repasses calculados.</p>
+                <p style="color:var(--text-muted)">O estoque relatado pelo gerente da loja ${pedido.loja} já atingiu ou excedeu o estoque máximo configurado para essa loja. Zero repasses calculados.</p>
                 <br/>
                 <button class="btn btn-primary" onclick="PedidosPage.finalizarPedido(true)">Baixar Diretamente no Sistema como Finalizado</button>
                 <button class="btn btn-secondary" onclick="PedidosPage.cancelarSeparacao()">Voltar</button>
@@ -5027,16 +5883,35 @@ window.PedidosPage = {
       if (isDone) prontos++;
       
       const pct = Math.min(100, Math.floor(((item.separado || 0) / item.quantidade) * 100));
+
+      // Buscar o produto no ERP para exibir o código e unidade
+      const prodERP = DB.getProdutos().find(p =>
+        p.nome.toLowerCase() === item.nome.toLowerCase() ||
+        p.nome.toLowerCase().includes(item.nome.toLowerCase()) ||
+        item.nome.toLowerCase().includes(p.nome.toLowerCase())
+      );
+      const codInterno  = prodERP ? (prodERP.codigoInterno || '—') : '—';
+      const unidade     = prodERP ? (prodERP.unidade || 'un') : 'un';
+      const isKg        = ['kg','g','L','ml'].includes(unidade);
+      const sepDisplay  = isKg
+        ? `${(item.separado || 0).toFixed(3)} ${unidade}`
+        : `${item.separado || 0} ${unidade}`;
+      const metaDisplay = isKg
+        ? `${item.quantidade.toFixed(3)} ${unidade}`
+        : `${item.quantidade} ${unidade}`;
       
       itemsHtml += `
         <div class="item-separacao" style="background: ${isDone ? 'var(--accent-dim)' : 'var(--bg-secondary)'}; padding:15px; border-radius:8px; margin-bottom:12px; border:1px solid var(--border)">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
             <div>
               <strong style="font-size:1.1rem; color:${isDone ? 'var(--accent)' : 'var(--text-primary)'}">${item.nome}</strong>
-              <div style="font-size:0.8rem; color:var(--text-muted)">Estoque Loja: ${item.estoqueNaLoja} | Meta: ${item.estoqueNaLoja + item.quantidade}</div>
+              <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px">
+                Cód: <code style="background:var(--bg-card);padding:1px 5px;border-radius:3px">${codInterno}</code>
+                &nbsp;|&nbsp; Estoque loja: ${item.estoqueNaLoja} &nbsp;|&nbsp; Est. Máx: ${item.estoqueNaLoja + item.quantidade}
+              </div>
             </div>
-            <div style="font-size:1.2rem; font-weight:bold; color:${isDone ? 'var(--accent)' : 'var(--warning)'}">
-              ${item.separado || 0} / ${item.quantidade} (repôr)
+            <div style="font-size:1.1rem; font-weight:bold; color:${isDone ? 'var(--accent)' : 'var(--warning)'}; text-align:right; min-width:120px">
+              ${sepDisplay} / ${metaDisplay}
             </div>
           </div>
           <div style="height:8px; width:100%; background:var(--bg-card); border-radius:4px; overflow:hidden">
@@ -5052,7 +5927,7 @@ window.PedidosPage = {
       <div class="card" style="max-width:800px; margin: 0 auto;">
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <h2 style="color:var(--accent)">📦 Reposição: ${pedido.loja}</h2>
+            <h2>📦 Reposição: ${this._badgeLoja(pedido.loja)}</h2>
             <p>Pegue o leitor e bip os códigos de barras de cada produto listado até completar a quantidade.</p>
           </div>
           <button class="btn btn-secondary" onclick="PedidosPage.cancelarSeparacao()">Listagem</button>
@@ -5082,63 +5957,114 @@ window.PedidosPage = {
     `;
   },
 
+  // ===== EAN-13 CUSTOMIZADO (BALANÇA) =====
+  // Formato: 2 | CCCCC | PPPPPP | V
+  //   Dígito 1    : fixo = "2"
+  //   Dígitos 2-6 : código interno do produto (5 dígitos, ex: "00014")
+  //   Dígitos 7-12: peso em gramas sem vírgula (6 dígitos, ex: "001154" → 1,154 kg)
+  //   Dígito 13   : dígito verificador EAN-13 padrão
+  parseEAN13Balanca(codigo) {
+    if (!/^\d{13}$/.test(codigo) || codigo[0] !== '2') return null;
+    const codProduto = codigo.substring(1, 6);   // 5 dígitos do código
+    const pesoRaw    = codigo.substring(6, 12);  // 6 dígitos do peso
+    const pesoKg     = parseInt(pesoRaw, 10) / 1000; // "001154" → 1.154 kg
+    return { codProduto, pesoKg };
+  },
+
   // Interceptor do Barcode (chamado pelo app.js global)
   onBarcodeScanned(codigo) {
-    if (!this.activeSeparacao) return; // Se não estiver na tela, ignora.
+    if (!this.activeSeparacao) return;
 
-    // 1. Procurar o produto no ERP
-    const produto = DB.getProdutoPorCodigo(codigo);
-    if (!produto) {
-      App.showToast(`Produto com código ${codigo} não encontrado no ERP!`, 'error');
-      this.playBeep(false);
-      return;
+    codigo = (codigo || '').trim();
+    if (!codigo) return;
+
+    let produto  = null;
+    let qtdBipada = 1;
+    let modoBalanca = false;
+    let pesoKg = 0;
+
+    // ── Tentar parsear como EAN-13 de balança ──────────────────────────────
+    const parsed = this.parseEAN13Balanca(codigo);
+    if (parsed) {
+      modoBalanca = true;
+      pesoKg      = parsed.pesoKg;
+
+      // Busca pelo codigoInterno — aceita com ou sem zeros à esquerda
+      const codNum = parseInt(parsed.codProduto, 10).toString();
+      const todos  = DB.getProdutos();
+      produto = todos.find(p =>
+        p.codigoInterno === parsed.codProduto ||
+        p.codigoInterno === codNum ||
+        (p.codigoInterno || '').replace(/^0+/, '') === codNum
+      );
+
+      if (!produto) {
+        App.showToast(`❌ Código "${parsed.codProduto}" (EAN-balança) não encontrado no cadastro!`, 'error');
+        this.playBeep(false);
+        this._focarScanner();
+        return;
+      }
+      qtdBipada = pesoKg;
+
+    } else {
+      // ── Fallback: código de barras padrão ─────────────────────────────────
+      produto = DB.getProdutoPorCodigo(codigo);
+      if (!produto) {
+        App.showToast(`❌ Código "${codigo}" não encontrado no ERP!`, 'error');
+        this.playBeep(false);
+        this._focarScanner();
+        return;
+      }
     }
 
-    // 2. Procurar na lista do pedido
+    // ── Buscar pedido e lista de separação ────────────────────────────────
     const pedidos = DB.getPedidos();
-    const pedido = pedidos.find(p => p.id === this.activeSeparacao);
-    if(!pedido) return;
+    const pedido  = pedidos.find(p => p.id === this.activeSeparacao);
+    if (!pedido) return;
 
-    // Calcular O QUE FOI FILTRADO (As reposições)
     const itensCalculados = this.calcularItensAEnviar(pedido);
-
-    // Tentativa de match por NOME. 
-    const itemAEnviar = itensCalculados.find(i => 
+    const itemAEnviar = itensCalculados.find(i =>
       i.nome.toLowerCase() === produto.nome.toLowerCase() ||
       produto.nome.toLowerCase().includes(i.nome.toLowerCase()) ||
       i.nome.toLowerCase().includes(produto.nome.toLowerCase())
     );
 
     if (!itemAEnviar) {
-      App.showToast(`🚨 O produto lido (${produto.nome}) NÃO é necessário enviar para esta loja ou não bateu o nome!`, 'error');
+      App.showToast(`🚨 "${produto.nome}" não consta na lista de separação desta loja!`, 'error');
       this.playBeep(false);
+      this._focarScanner();
       return;
     }
 
-    // 3. Atualizar quantidade no DOM REAL do banco (pq o calcularItensAEnviar criou uma cópia virtual)
+    // ── Atualizar quantidade separada ─────────────────────────────────────
     const itemNoBanco = pedido.itens.find(i => i.nome === itemAEnviar.nome);
-    if(itemNoBanco) {
-        itemNoBanco.separado = (itemNoBanco.separado || 0) + 1;
-        
-        if (itemNoBanco.separado > itemAEnviar.quantidade) { // limite da variavel Mapeada
-          App.showToast(`🚨 Você bipou ${produto.nome} a mais! O sistema vai prever envio de apenas ${itemAEnviar.quantidade}`, 'warning');
-          this.playBeep(false); 
-        } else {
-          App.showToast(`✅ ${produto.nome} conferido! (${itemNoBanco.separado}/${itemAEnviar.quantidade})`, 'success');
-          this.playBeep(true);
-        }
+    if (itemNoBanco) {
+      const anterior = parseFloat(itemNoBanco.separado || 0);
+      itemNoBanco.separado = Math.round((anterior + qtdBipada) * 1000) / 1000;
 
-        // 4. Salvar estado no banco local
-        DB.updatePedido(pedido.id, { itens: pedido.itens });
+      const label = modoBalanca
+        ? `${produto.nome} — ${pesoKg.toFixed(3)} kg bipado | Total: ${itemNoBanco.separado.toFixed(3)} / ${itemAEnviar.quantidade} kg`
+        : `${produto.nome} (${itemNoBanco.separado} / ${itemAEnviar.quantidade})`;
+
+      if (itemNoBanco.separado > itemAEnviar.quantidade) {
+        App.showToast(`⚠️ Acima do necessário: ${label}`, 'warning');
+        this.playBeep(false);
+      } else {
+        App.showToast(`✅ ${label}`, 'success');
+        this.playBeep(true);
+      }
+
+      DB.updatePedido(pedido.id, { itens: pedido.itens });
     }
-    
-    // 5. Re-render para atualizar barra de progresso
+
     App.navigateTo('pedidos');
-    
-    // foco pro tester manual
-    setTimeout(()=> {
-        const inp = document.getElementById('manualSimScanner');
-        if(inp) { inp.value = ''; inp.focus(); }
+    this._focarScanner();
+  },
+
+  _focarScanner() {
+    setTimeout(() => {
+      const inp = document.getElementById('manualSimScanner');
+      if (inp) { inp.value = ''; inp.focus(); }
     }, 50);
   },
 
@@ -5210,66 +6136,191 @@ window.PedidosPage = {
 
     const itensRepor = this.calcularItensAEnviar(pedido);
 
+    // Mapa nome → valor bruto digitado no formulário (TODOS os itens com qualquer entrada)
+    const informadoMap = {};
+    (pedido.itens || []).forEach(i => {
+      if (Number(i.quantidade || 0) > 0) informadoMap[i.nome] = Number(i.quantidade);
+    });
+
+    // Itens que constam no formulário mas foram filtrados pelo cálculo de par-level
+    // (sem máximo cadastrado, ou estoque já acima do máximo)
+    const nomeRepor = new Set(itensRepor.map(i => i.nome));
+    const itensExtras = Object.entries(informadoMap)
+      .filter(([nome]) => !nomeRepor.has(nome))
+      .map(([nome, qtdInformada]) => ({
+        nome,
+        estoqueNaLoja: qtdInformada,
+        quantidade:    0,
+        separado:      0,
+        isExtra:       true
+      }));
+
+    const todosItens = [...itensRepor, ...itensExtras]
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+    // Índice nome→fornecedor: catálogo (já enriquecido com dados ERP) + fallback direto nos produtos
+    const catalogoFlat = {};
+    DB.getCatalogoPedido().forEach(cat => {
+      cat.itens.forEach(item => { if (item.fornecedor) catalogoFlat[item.nome] = item.fornecedor; });
+    });
+    const prodFornFlat = {};
+    DB.getProdutos().forEach(p => { prodFornFlat[p.nome.toLowerCase()] = p.fornecedor || ''; });
+    const _getForn = nome => {
+      if (catalogoFlat[nome]) return catalogoFlat[nome];
+      const k = nome.toLowerCase();
+      if (prodFornFlat[k]) return prodFornFlat[k];
+      const match = Object.keys(prodFornFlat).find(pk => pk.includes(k) || k.includes(pk));
+      return match ? prodFornFlat[match] : '';
+    };
+
+    // Índice nome(lowercase)→precoVenda a partir dos produtos cadastrados
+    const precoFlat = {};
+    DB.getProdutos().forEach(p => {
+      precoFlat[p.nome.toLowerCase()] = parseFloat(p.precoVenda || 0);
+    });
+    const _getPreco = nome => {
+      const k = nome.toLowerCase();
+      if (precoFlat[k] !== undefined) return precoFlat[k];
+      const match = Object.keys(precoFlat).find(pk => pk.includes(k) || k.includes(pk));
+      return match ? precoFlat[match] : 0;
+    };
+
+    const isDireto = pedido.tipoPedido === 'direto';
     let trs = '';
-    itensRepor.forEach(i => {
+    let totalGeral = 0;
+
+    todosItens.forEach(i => {
+      const fornecedor = _getForn(i.nome);
+      const separado   = i.separado || 0;
+      const confOk     = separado >= i.quantidade && i.quantidade > 0;
+      const confLabel  = separado > 0
+        ? `<strong>${separado}</strong>${confOk ? ' ✓' : ' !'}`
+        : '—';
+      const confStyle  = confOk
+        ? 'font-size:0.8rem;text-align:center;color:#166534'
+        : separado > 0
+          ? 'font-size:0.8rem;text-align:center;color:#92400e'
+          : 'font-size:0.8rem;text-align:center;color:#999';
+
+      const precoVenda = _getPreco(i.nome);
+      const qtdValor   = separado > 0 ? separado : i.quantidade;
+      const valorItem  = precoVenda * qtdValor;
+      if (!i.isExtra) totalGeral += valorItem;
+
+      const valorLabel = precoVenda > 0 && !i.isExtra ? 'R$ ' + valorItem.toFixed(2) : '—';
+      const valorStyle = 'font-size:0.75rem;text-align:right;white-space:nowrap;' + (precoVenda > 0 && !i.isExtra ? 'font-weight:600' : 'color:#999');
+
+      const informado   = informadoMap[i.nome] ?? '—';
+      const enviarLabel = i.isExtra ? '<span style="color:#aaa">—</span>' : i.quantidade;
+      const rowStyle    = i.isExtra ? 'opacity:0.55;background:#fafafa' : '';
+
       trs += `
-        <tr>
-          <td><div style="width:20px;height:20px;border:2px solid #000;border-radius:4px"></div></td>
-          <td style="font-size:1.2rem;font-weight:bold">${i.quantidade}</td>
-          <td style="font-size:1.1rem">${i.nome}</td>
-          <td style="font-size:0.9rem; color:#666">L:${i.estoqueNaLoja}</td>
-          <td style="border-bottom:1px solid #ccc"></td>
+        <tr style="${rowStyle}">
+          <td><div style="width:14px;height:14px;border:1.5px solid ${i.isExtra ? '#ccc' : '#000'};border-radius:3px"></div></td>
+          <td style="font-size:0.85rem;font-weight:bold;text-align:center;white-space:nowrap">${enviarLabel}</td>
+          <td style="font-size:0.85rem;text-align:center;color:#1d4ed8;font-weight:700;white-space:nowrap">${informado}</td>
+          <td style="font-size:0.82rem">${i.nome}</td>
+          <td style="font-size:0.75rem;color:#555;font-weight:600">${fornecedor || '—'}</td>
+          <td style="${confStyle};white-space:nowrap">${confLabel}</td>
+          <td style="${valorStyle}">${valorLabel}</td>
         </tr>
       `;
     });
 
-    if(itensRepor.length === 0) {
-        trs = `<tr><td colspan="5" style="text-align:center; padding: 20px;">Não é necessário repôr nenhum item nesta medição de estoque.</td></tr>`;
+    const colSpanTotal = 7;
+    if (todosItens.length === 0) {
+      trs = `<tr><td colspan="${colSpanTotal}" style="text-align:center;padding:20px">Nenhum item solicitado.</td></tr>`;
     }
 
+    const totalRow = totalGeral > 0 ? `
+      <tr style="background:#f0f0f0;font-weight:bold;border-top:2px solid #000">
+        <td colspan="6" style="text-align:right;padding:5px 8px;font-size:0.8rem;letter-spacing:.03em">VALOR TOTAL DO PEDIDO:</td>
+        <td style="text-align:right;padding:5px 8px;font-size:0.9rem;color:#166534">R$ ${totalGeral.toFixed(2)}</td>
+      </tr>
+    ` : '';
+
+    const corLoja = this._corLoja(pedido.loja);
     const win = window.open('', '_blank');
     win.document.write(`
       <html>
         <head>
           <title>Romaneio Reposição - ${pedido.loja}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color:#000; }
-            .header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
-            table { width: 100%; border-collapse: collapse; margin-top:20px; }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background: #f0f0f0; border-bottom: 2px solid #000; }
-            td:nth-child(2) { width: 80px; text-align:center; }
+            body { font-family: Arial, sans-serif; padding: 12px; color:#000; font-size:11px; }
+            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+            .loja-banner { display:inline-block; padding:3px 14px; border-radius:20px; font-size:0.95rem; font-weight:800; letter-spacing:.05em; background:${corLoja.bg}; color:${corLoja.text}; margin:4px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top:8px; table-layout:auto; }
+            th, td { padding: 3px 5px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background: #f0f0f0; border-bottom: 2px solid #000; font-size:0.72rem; }
+            th:nth-child(1), td:nth-child(1),
+            th:nth-child(2), td:nth-child(2),
+            th:nth-child(3), td:nth-child(3),
+            th:nth-child(6), td:nth-child(6),
+            th:nth-child(7), td:nth-child(7) { white-space:nowrap; width:1%; }
             @media print {
-              body { padding: 0; }
+              body { padding: 5mm; }
               button { display: none; }
             }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1 style="margin:0">ROMANEIO DE RESSUPRIMENTO</h1>
-            <h2 style="margin:10px 0 0">Destino: ${pedido.loja}</h2>
-            <p>Leitura de Estoque em: ${new Date(pedido.data).toLocaleString()}</p>
+            <h1 style="margin:0;font-size:1rem">ROMANEIO DE RESSUPRIMENTO</h1>
+            <div><span class="loja-banner">${pedido.loja}</span></div>
+            <p style="margin:2px 0 0;font-size:0.72rem">Leitura de Estoque em: ${new Date(pedido.data).toLocaleString()}</p>
           </div>
           <table>
             <thead>
               <tr>
-                <th style="width:40px">OK</th>
-                <th>ENVIAR</th>
+                <th>OK</th>
+                <th style="text-align:center">ENVIAR</th>
+                <th style="text-align:center;color:#1d4ed8">INFORMADO</th>
                 <th>DESCRIÇÃO DO ITEM</th>
-                <th>A TÍTULO DE INFORMAÇÃO</th>
-                <th>CHEGAGEM INTERNA</th>
+                <th>FORNECEDOR</th>
+                <th style="text-align:center">CONF.</th>
+                <th style="text-align:right">VALOR (R$)</th>
               </tr>
             </thead>
-            <tbody>${trs}</tbody>
+            <tbody>${trs}${totalRow}</tbody>
           </table>
-          <div style="margin-top:50px; text-align:center">
-            <button onclick="window.print()" style="padding:15px 40px; font-size:1.2rem; cursor:pointer; background:#222; color:#fff; border:none; border-radius:8px">Imprimir Agora</button>
+          <div style="margin-top:16px;text-align:center">
+            <button onclick="window.print()" style="padding:8px 28px;font-size:0.9rem;cursor:pointer;background:#222;color:#fff;border:none;border-radius:6px">Imprimir Agora</button>
           </div>
         </body>
       </html>
     `);
     win.document.close();
+  },
+
+  migrarRecheiosParaERP() {
+    const catRecheios = DB.getCatalogoPedido().find(c => c.id === 'insumos');
+    if (!catRecheios || !catRecheios.itens.length) {
+      App.showToast('Nenhum item para migrar.', 'warning');
+      return;
+    }
+    if (!confirm('Criar produtos na categoria "Recheios" para cada item do catálogo atual?\nItens com o mesmo nome já existentes no ERP serao ignorados.')) return;
+
+    const existentes = DB.getProdutos().map(p => p.nome.toLowerCase());
+    let criados = 0;
+    catRecheios.itens.forEach(item => {
+      const nome = typeof item === 'object' ? item.nome : item;
+      if (existentes.includes(nome.toLowerCase())) return;
+      DB.addProduto({
+        nome,
+        categoria:        'Recheios',
+        formularioMaximo: (typeof item === 'object' ? item.max : 0) || 0,
+        fornecedor:       (typeof item === 'object' ? item.fornecedor : '') || '',
+        codigoInterno: '', codigoBarras: '', unidade: 'kg', estoque: 0,
+        estoqueMinimo: 0, estoqueMaximo: 0, custo: 0, precoVenda: 0,
+        temperatura: 'Resfriado', formaEntrega: '', qtdPorUnidade: 0,
+        local: 'Camara Fria', observacoes: ''
+      });
+      criados++;
+    });
+    const ignorados = catRecheios.itens.length - criados;
+    App.showToast(criados + ' produto(s) criado(s)' + (ignorados > 0 ? ', ' + ignorados + ' ja existiam.' : '!'), 'success');
+    App.closeModal();
+    App.navigateTo('produtos');
   },
 
   playBeep(success) {
@@ -5787,6 +6838,531 @@ const RelatoriosPage = {
 
 
 /**
+ * dp.js — Módulo Departamento Pessoal
+ * Controle Cozinha Central — Esphirra's Delivery
+ */
+
+// ── CONFIGURAÇÃO EMAILJS ───────────────────────────────────────────────────────
+// 1. Crie conta em https://www.emailjs.com (plano gratuito = 200 emails/mês)
+// 2. Adicione um serviço de email (Gmail, Outlook, etc.)
+// 3. Crie um template com as variáveis:
+//    {{to_name}}, {{to_email}}, {{cargo}}, {{codigo}}, {{link_cadastro}}
+// 4. Preencha os três valores abaixo com os dados do seu projeto EmailJS
+const DP_EMAILJS = {
+  publicKey:  'mddRJdbjWQKHMN8aL',
+  serviceId:  'service_e6y8dog',
+  templateId: 'template_av3hh7a',
+};
+
+const CARGOS_DP = [
+  'Atendente', 'Auxiliar de Cozinha', 'Auxiliar de Limpeza', 'Auxiliar Administrativo',
+  'Caixa', 'Confeiteiro', 'Cozinheiro', 'Entregador', 'Gerente', 'Pizzaiollo',
+  'Salgadeiro', 'Supervisor', 'Outro'
+];
+
+const DpPage = {
+
+  render() {
+    const funcs    = DB.getFuncionarios();
+    const convites = DB.getConvites();
+    const ativos   = funcs.filter(f => f.status === 'ativo').length;
+    const pendentes = convites.filter(c => c.status === 'pendente').length;
+    const ejsOk    = DP_EMAILJS.publicKey !== 'SEU_PUBLIC_KEY';
+
+    return `
+      <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap">
+        <div class="stat-card" style="flex:1;min-width:140px">
+          <div class="stat-value">${ativos}</div>
+          <div class="stat-label">Ativos</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:140px">
+          <div class="stat-value">${funcs.length - ativos}</div>
+          <div class="stat-label">Inativos</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:140px">
+          <div class="stat-value">${pendentes}</div>
+          <div class="stat-label">Convites Pendentes</div>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:140px">
+          <div class="stat-value">${funcs.length}</div>
+          <div class="stat-label">Total Cadastrados</div>
+        </div>
+      </div>
+
+      ${!ejsOk ? `
+        <div class="alert alert-warning" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span>⚠️ <strong>EmailJS não configurado.</strong> Edite <code>js/dp.js</code> e preencha <code>DP_EMAILJS</code> para enviar convites por email.</span>
+          <a href="https://www.emailjs.com" target="_blank" style="color:inherit;font-weight:700;white-space:nowrap">Criar conta →</a>
+        </div>
+      ` : ''}
+
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px">
+          <h3 style="margin:0">Funcionários (${funcs.length})</h3>
+          <button class="btn btn-primary" onclick="DpPage.abrirConvite()">+ Convidar Funcionário</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nome</th>
+                <th>Cargo</th>
+                <th>CPF</th>
+                <th>Telefone</th>
+                <th>Status</th>
+                <th>Salário</th>
+                <th>Admissão</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${funcs.length === 0 ? `
+                <tr><td colspan="9" style="text-align:center;color:var(--text-secondary);padding:48px 20px">
+                  Nenhum funcionário cadastrado. Clique em <strong>Convidar Funcionário</strong> para começar.
+                </td></tr>
+              ` : funcs.slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR')).map(f => `
+                <tr>
+                  <td><code style="font-size:.8rem">${f.codigo || f.id}</code></td>
+                  <td>
+                    ${f.foto ? `<img src="${f.foto}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;margin-right:8px;vertical-align:middle">` : ''}
+                    <strong>${f.nome || '—'}</strong>
+                  </td>
+                  <td>${f.cargo || '—'}</td>
+                  <td>${f.cpf ? _dpMascaraCpf(f.cpf) : '—'}</td>
+                  <td>${f.telefone || '—'}</td>
+                  <td>
+                    <span style="padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;background:${f.status==='ativo'?'rgba(16,185,129,.15)':'rgba(107,114,128,.15)'};color:${f.status==='ativo'?'#10b981':'#6b7280'}">
+                      ${f.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                  <td>${f.salario ? 'R$ ' + parseFloat(f.salario).toFixed(2).replace('.',',') : '<span style="color:#f87171;font-size:.75rem">⚠ não definido</span>'}</td>
+                  <td>${f.admitidoEm ? new Date(f.admitidoEm + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                  <td style="white-space:nowrap">
+                    <button class="btn btn-sm btn-secondary" onclick="DpPage.verFuncionario('${f.id}')">Ver</button>
+                    ${f.status === 'ativo'
+                      ? `<button class="btn btn-sm" style="margin-left:4px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)" onclick="DpPage.inativar('${f.id}')">Inativar</button>`
+                      : `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="DpPage.reativar('${f.id}')">Reativar</button>`}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      ${convites.length > 0 ? `
+        <div class="card">
+          <div class="card-header" style="padding:16px 20px">
+            <h3 style="margin:0">Convites (${convites.length})</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr><th>Nome</th><th>Email</th><th>Cargo</th><th>Status</th><th>Enviado em</th><th></th></tr>
+              </thead>
+              <tbody>
+                ${convites.slice().sort((a,b) => new Date(b.criadoEm) - new Date(a.criadoEm)).map(c => `
+                  <tr>
+                    <td>${c.nome || '—'}</td>
+                    <td>${c.email || '—'}</td>
+                    <td>${c.cargo || '—'}</td>
+                    <td>
+                      <span style="padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;background:${c.status==='pendente'?'rgba(234,179,8,.15)':c.status==='usado'?'rgba(16,185,129,.15)':'rgba(107,114,128,.15)'};color:${c.status==='pendente'?'#eab308':c.status==='usado'?'#10b981':'#6b7280'}">
+                        ${c.status === 'pendente' ? 'Pendente' : c.status === 'usado' ? 'Cadastrado' : 'Cancelado'}
+                      </span>
+                    </td>
+                    <td>${c.criadoEm ? new Date(c.criadoEm).toLocaleDateString('pt-BR') : '—'}</td>
+                    <td style="white-space:nowrap">
+                      ${c.status === 'pendente' ? `
+                        <button class="btn btn-sm btn-secondary" onclick="DpPage.copiarLink('${c.token}')">Copiar Link</button>
+                        <button class="btn btn-sm" style="margin-left:4px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)" onclick="DpPage.cancelarConvite('${c.token}')">Cancelar</button>
+                      ` : ''}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+    `;
+  },
+
+  postRender() {
+    setTimeout(function() {
+      if (!window.emailjs) {
+        App.showToast('⚠️ EmailJS não carregou. Convites serão salvos sem envio de email.', 'warning');
+      }
+    }, 1500);
+  },
+
+  abrirConvite() {
+    App.openModal('Convidar Funcionário', `
+      <div class="form-group">
+        <label>Nome completo *</label>
+        <input type="text" id="cNome" class="form-control" placeholder="Nome do funcionário" />
+      </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" id="cEmail" class="form-control" placeholder="email@exemplo.com" />
+      </div>
+      <div class="form-group">
+        <label>Cargo *</label>
+        <select id="cCargo" class="form-control">
+          <option value="">Selecione...</option>
+          ${CARGOS_DP.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Data de admissão</label>
+        <input type="date" id="cAdmissao" class="form-control" value="${new Date().toISOString().split('T')[0]}" />
+      </div>
+    `, [
+      { label: 'Cancelar', class: 'btn-secondary', action: 'App.closeModal()' },
+      { label: 'Enviar Convite', class: 'btn-primary', action: 'DpPage.enviarConvite()' }
+    ]);
+  },
+
+  enviarConvite() {
+    const nome     = (document.getElementById('cNome').value || '').trim();
+    const email    = (document.getElementById('cEmail').value || '').trim();
+    const cargo    = document.getElementById('cCargo').value;
+    const admissao = document.getElementById('cAdmissao').value;
+
+    if (!nome || !email || !cargo) {
+      App.showToast('Preencha nome, email e cargo', 'error');
+      return;
+    }
+
+    const token  = _dpGerarToken();
+    const codigo = _dpGerarCodigo();
+    const link   = window.location.origin + '/funcionario.html?t=' + token;
+
+    DB.addConvite({ token, email, nome, cargo, codigo, admitidoEm: admissao, status: 'pendente', criadoEm: new Date().toISOString() });
+
+    const ejsCarregado = !!window.emailjs;
+    const ejsConfigurado = DP_EMAILJS.publicKey !== 'SEU_PUBLIC_KEY';
+    console.log('[DP] emailjs carregado:', ejsCarregado, '| configurado:', ejsConfigurado);
+
+    if (ejsConfigurado && ejsCarregado) {
+      emailjs.send(DP_EMAILJS.serviceId, DP_EMAILJS.templateId, {
+        to_name: nome, to_email: email, cargo, codigo, link_cadastro: link
+      }, { publicKey: DP_EMAILJS.publicKey })
+      .then(function(resp) {
+        console.log('[DP] EmailJS sucesso:', resp);
+        App.closeModal();
+        App.showToast('Convite enviado para ' + email, 'success');
+        App.navigateTo('dp');
+      })
+      .catch(function(err) {
+        console.error('[EmailJS] erro:', err);
+        const detalhe = err && (err.text || err.message || JSON.stringify(err));
+        App.openModal('Erro ao enviar email', `
+          <p style="margin-bottom:12px">O convite foi salvo, mas o email não foi enviado. Use <strong>"Copiar Link"</strong> para enviar manualmente.</p>
+          <p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:6px">Detalhe do erro:</p>
+          <pre style="background:#0d1117;padding:12px;border-radius:8px;font-size:.78rem;color:#f87171;white-space:pre-wrap;word-break:break-all">${detalhe}</pre>
+        `, [{ label: 'Fechar', class: 'btn-secondary', action: 'App.closeModal();App.navigateTo("dp")' }]);
+      });
+    } else {
+      const motivo = !ejsCarregado ? 'EmailJS não carregou (verifique sua conexão)' : 'EmailJS não configurado';
+      App.openModal('Convite salvo — email não enviado', `
+        <p style="margin-bottom:16px">Motivo: <strong>${motivo}</strong></p>
+        <p style="margin-bottom:8px;color:var(--text-secondary)">Envie o link abaixo diretamente ao funcionário:</p>
+        <input type="text" class="form-control" value="${link}" onclick="this.select()" readonly style="font-size:.78rem;font-family:monospace" />
+      `, [
+        { label: 'Copiar link', class: 'btn-primary', action: `navigator.clipboard.writeText('${link}').then(()=>App.showToast('Link copiado!','success'))` },
+        { label: 'Fechar', class: 'btn-secondary', action: 'App.closeModal();App.navigateTo("dp")' }
+      ]);
+    }
+  },
+
+  copiarLink(token) {
+    const link = window.location.origin + '/funcionario.html?t=' + token;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => App.showToast('Link copiado!', 'success'));
+    } else {
+      App.openModal('Link do Cadastro', `
+        <p style="margin-bottom:8px;color:var(--text-secondary)">Copie o link abaixo e envie ao funcionário:</p>
+        <input type="text" class="form-control" value="${link}" onclick="this.select()" readonly style="font-size:.78rem;font-family:monospace" />
+      `, [{ label: 'Fechar', class: 'btn-secondary', action: 'App.closeModal()' }]);
+    }
+  },
+
+  cancelarConvite(token) {
+    if (!confirm('Cancelar este convite?')) return;
+    DB.updateConvite(token, { status: 'cancelado' });
+    App.showToast('Convite cancelado', 'warning');
+    App.navigateTo('dp');
+  },
+
+  verFuncionario(id) {
+    const f = DB.getFuncionarios().find(x => x.id === id);
+    if (!f) return;
+    const endereco = [f.logradouro, f.numero, f.complemento, f.bairro].filter(Boolean).join(', ');
+    App.openModal('Funcionário: ' + f.nome, `
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px">
+        ${f.foto ? `<div style="flex:0 0 auto"><img src="${f.foto}" style="width:100px;height:100px;border-radius:10px;object-fit:cover;border:2px solid var(--border)"></div>` : ''}
+        <div style="flex:1;display:grid;gap:10px;grid-template-columns:1fr 1fr;align-content:start">
+          ${_dpCampo('Código', f.codigo || f.id)}
+          ${_dpCampo('Cargo', f.cargo)}
+          ${_dpCampo('Status', `<span style="color:${f.status==='ativo'?'#10b981':'#6b7280'}">${f.status === 'ativo' ? 'Ativo' : 'Inativo'}</span>`)}
+          ${_dpCampo('Email', f.email)}
+        </div>
+      </div>
+      <hr style="margin:0 0 16px;border:none;border-top:1px solid var(--border)">
+      <div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+        ${_dpCampo('CPF', f.cpf ? _dpMascaraCpf(f.cpf) : null)}
+        ${_dpCampo('RG', f.rg)}
+        ${_dpCampo('Nascimento', f.dataNascimento ? new Date(f.dataNascimento + 'T12:00:00').toLocaleDateString('pt-BR') : null)}
+        ${_dpCampo('Telefone', f.telefone)}
+        ${_dpCampo('Estado Civil', f.estadoCivil)}
+        ${_dpCampo('Admissão', f.admitidoEm ? new Date(f.admitidoEm + 'T12:00:00').toLocaleDateString('pt-BR') : null)}
+        ${_dpCampo('Endereço', endereco || null)}
+        ${_dpCampo('Cidade / UF', f.cidade && f.estado ? f.cidade + ' / ' + f.estado : null)}
+        ${_dpCampo('CEP', f.cep)}
+        ${_dpCampo('Banco', f.banco)}
+        ${_dpCampo('Chave PIX', f.pix)}
+      </div>
+      <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="flex:1;min-width:180px;max-width:240px">
+          <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);margin-bottom:6px">Salário (R$) <span style="color:#f0a30a">*</span></div>
+          <input type="number" id="inputSalario_${f.id}" value="${f.salario || ''}" min="0" step="0.01" placeholder="0,00" class="form-control" />
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="DpPage.salvarSalario('${f.id}')">Salvar salário</button>
+      </div>
+      <hr style="margin:0 0 16px;border:none;border-top:1px solid var(--border)">
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);margin-bottom:12px">Documentos</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">
+        ${_dpDocBtn(f.foto,           '📷 Selfie')}
+        ${_dpDocBtn(f.docResidencia,  '🏠 Comp. Residência')}
+        ${_dpDocBtn(f.docAdmissional, '🏥 Exame Admissional')}
+        ${_dpDocBtn(f.docCarteira,    '📒 Carteira de Trabalho')}
+        ${f.filhosMenores14 ? _dpDocBtn(f.docCertidao, '📋 Certidão de Nascimento') : ''}
+      </div>
+    `, [
+      { label: 'Fechar', class: 'btn-secondary', action: 'App.closeModal()' },
+      { label: '📄 Gerar PDF', class: 'btn-primary', action: `DpPage.gerarPdf('${f.id}')` }
+    ], 'modal-lg');
+  },
+
+  inativar(id) {
+    if (!confirm('Inativar este funcionário?')) return;
+    DB.updateFuncionario(id, { status: 'inativo' });
+    App.showToast('Funcionário inativado', 'warning');
+    App.navigateTo('dp');
+  },
+
+  reativar(id) {
+    DB.updateFuncionario(id, { status: 'ativo' });
+    App.showToast('Funcionário reativado', 'success');
+    App.navigateTo('dp');
+  },
+
+  salvarSalario(id) {
+    const val = parseFloat(document.getElementById('inputSalario_' + id).value);
+    if (!val || val <= 0) { App.showToast('Informe um salário válido', 'error'); return; }
+    DB.updateFuncionario(id, { salario: val });
+    App.showToast('Salário salvo com sucesso', 'success');
+    App.navigateTo('dp');
+    App.closeModal();
+  },
+
+  gerarPdf(id) {
+    const f = DB.getFuncionarios().find(x => x.id === id);
+    if (!f) return;
+    if (!f.salario) { App.showToast('Defina o salário antes de gerar o PDF', 'error'); return; }
+
+    const fmt      = v => v || '—';
+    const fmtData  = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const fmtReal  = v => v ? 'R$ ' + parseFloat(v).toFixed(2).replace('.', ',') : '—';
+    const fmtCpf   = c => c ? c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '—';
+    const endereco = [f.logradouro, f.numero, f.complemento].filter(Boolean).join(', ');
+
+    const docBloco = (label, base64) => {
+      if (!base64) return `
+        <div class="doc-box" style="opacity:.45">
+          <div class="doc-titulo">${label}</div>
+          <div style="padding:18px;text-align:center;font-size:8pt;color:#999">Não enviado</div>
+        </div>`;
+      if (base64.startsWith('data:application/pdf')) return `
+        <div class="doc-box">
+          <div class="doc-titulo">${label}</div>
+          <div style="padding:18px;text-align:center;font-size:8.5pt;color:#b45309;background:#fef9c3">
+            📄 Arquivo em PDF<br><span style="font-size:7.5pt;color:#888">Visualize separadamente no sistema</span>
+          </div>
+        </div>`;
+      return `
+        <div class="doc-box">
+          <div class="doc-titulo">${label}</div>
+          <img src="${base64}" style="width:100%;max-height:200px;object-fit:contain;display:block" />
+        </div>`;
+    };
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Ficha — ${f.nome}</title>
+<style>
+  @page { size:A4; margin:18mm 15mm; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:10pt;color:#1a1a1a}
+  .topo{display:flex;align-items:center;gap:16px;border-bottom:3px solid #f0a30a;padding-bottom:14px;margin-bottom:20px}
+  .topo img{width:80px;height:80px;border-radius:8px;object-fit:cover;border:2px solid #e0e0e0;flex-shrink:0}
+  .topo h1{font-size:15pt}
+  .topo .sub{color:#555;font-size:9pt;margin-top:3px}
+  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:8pt;font-weight:bold;color:#fff}
+  .sec{margin-bottom:16px}
+  .sec-titulo{font-size:8pt;font-weight:bold;text-transform:uppercase;letter-spacing:.05em;color:#888;border-bottom:1px solid #e0e0e0;padding-bottom:4px;margin-bottom:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px 20px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px 20px}
+  .campo label{display:block;font-size:7.5pt;color:#888;margin-bottom:1px}
+  .campo span{font-size:10pt;font-weight:500}
+  .destaque{background:#fffbeb;border:1px solid #f0a30a;border-radius:6px;padding:8px 14px;display:inline-block;margin-bottom:14px}
+  .destaque label{font-size:7.5pt;color:#92400e;font-weight:bold;display:block}
+  .destaque span{font-size:13pt;font-weight:700;color:#92400e}
+  .docs-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .doc-box{border:1px solid #e0e0e0;border-radius:6px;overflow:hidden}
+  .doc-titulo{font-size:8pt;font-weight:bold;padding:5px 8px;background:#f5f5f5;border-bottom:1px solid #e0e0e0}
+  .rodape{margin-top:28px;border-top:1px solid #e0e0e0;padding-top:8px;text-align:center;color:#aaa;font-size:8pt}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style>
+</head>
+<body>
+
+<div class="topo">
+  ${f.foto ? `<img src="${f.foto}" />` : ''}
+  <div style="flex:1">
+    <h1>${f.nome}</h1>
+    <div class="sub">${fmt(f.cargo)} &nbsp;•&nbsp; Código: <strong>${f.codigo || f.id}</strong></div>
+    <div style="margin-top:6px">
+      <span class="badge" style="background:${f.status==='ativo'?'#16a34a':'#6b7280'}">${f.status==='ativo'?'Ativo':'Inativo'}</span>
+    </div>
+  </div>
+  <div style="text-align:right;font-size:8.5pt">
+    <div style="color:#888">Gerado em</div>
+    <div style="font-weight:bold">${new Date().toLocaleDateString('pt-BR')}</div>
+    <div style="color:#888;margin-top:6px">Esphirra's Delivery</div>
+  </div>
+</div>
+
+<div class="destaque">
+  <label>Salário</label>
+  <span>${fmtReal(f.salario)}</span>
+</div>
+
+<div class="sec">
+  <div class="sec-titulo">Dados Pessoais</div>
+  <div class="grid3">
+    <div class="campo"><label>CPF</label><span>${fmtCpf(f.cpf)}</span></div>
+    <div class="campo"><label>RG</label><span>${fmt(f.rg)}</span></div>
+    <div class="campo"><label>Nascimento</label><span>${fmtData(f.dataNascimento)}</span></div>
+    <div class="campo"><label>Telefone</label><span>${fmt(f.telefone)}</span></div>
+    <div class="campo"><label>Email</label><span>${fmt(f.email)}</span></div>
+    <div class="campo"><label>Estado Civil</label><span>${fmt(f.estadoCivil)}</span></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-titulo">Endereço</div>
+  <div class="grid2">
+    <div class="campo"><label>Logradouro</label><span>${fmt(endereco)}</span></div>
+    <div class="campo"><label>Bairro</label><span>${fmt(f.bairro)}</span></div>
+    <div class="campo"><label>Cidade / UF</label><span>${f.cidade && f.estado ? f.cidade+' / '+f.estado : '—'}</span></div>
+    <div class="campo"><label>CEP</label><span>${fmt(f.cep)}</span></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-titulo">Dados Profissionais e Bancários</div>
+  <div class="grid3">
+    <div class="campo"><label>Cargo</label><span>${fmt(f.cargo)}</span></div>
+    <div class="campo"><label>Admissão</label><span>${fmtData(f.admitidoEm)}</span></div>
+    <div class="campo"><label>Filhos &lt; 14 anos</label><span>${f.filhosMenores14 ? 'Sim' : 'Não'}</span></div>
+    <div class="campo"><label>Banco</label><span>${fmt(f.banco)}</span></div>
+    <div class="campo"><label>Chave PIX</label><span>${fmt(f.pix)}</span></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-titulo">Documentos</div>
+  <div class="docs-grid">
+    ${docBloco('Comprovante de Residência', f.docResidencia)}
+    ${docBloco('Exame Admissional', f.docAdmissional)}
+    ${docBloco('Carteira de Trabalho', f.docCarteira)}
+    ${f.filhosMenores14 ? docBloco('Certidão de Nascimento', f.docCertidao) : ''}
+  </div>
+</div>
+
+<div class="rodape">Esphirra's Delivery — Cozinha Central &nbsp;•&nbsp; Departamento Pessoal &nbsp;•&nbsp; ${f.codigo || f.id}</div>
+
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+  },
+
+  verDocumento(label, btn) {
+    const base64 = btn.dataset.src;
+    const isPdf  = base64.startsWith('data:application/pdf');
+    if (isPdf) {
+      const win = window.open('', '_blank');
+      win.document.write(`<html><head><title>${label}</title></head><body style="margin:0">
+        <embed src="${base64}" type="application/pdf" width="100%" height="100%" style="position:fixed;inset:0" />
+      </body></html>`);
+    } else {
+      App.openModal(label, `
+        <div style="text-align:center">
+          <img src="${base64}" style="max-width:100%;max-height:70vh;border-radius:8px;object-fit:contain" />
+        </div>
+      `, [{ label: 'Fechar', class: 'btn-secondary', action: 'App.closeModal()' }], 'modal-lg');
+    }
+  }
+};
+
+// ── HELPERS ────────────────────────────────────────────────────────────────────
+
+function _dpGerarToken() {
+  return 'tk' + Date.now().toString(36) + Math.random().toString(36).substr(2, 8);
+}
+
+function _dpGerarCodigo() {
+  const funcs = DB.getFuncionarios();
+  const convites = DB.getConvites().filter(c => c.status !== 'cancelado');
+  const numeros = [...funcs, ...convites].map(x => parseInt((x.codigo || 'FUN000').replace('FUN', '')) || 0);
+  const proximo = (numeros.length > 0 ? Math.max(...numeros) + 1 : 1).toString().padStart(3, '0');
+  return 'FUN' + proximo;
+}
+
+function _dpMascaraCpf(cpf) {
+  const c = cpf.replace(/\D/g, '');
+  return c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function _dpDocBtn(base64, label) {
+  if (!base64) {
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:1px dashed var(--border);color:var(--text-secondary);font-size:.82rem;opacity:.5">${label} <span style="font-size:.72rem">(não enviado)</span></div>`;
+  }
+  const isPdf = base64.startsWith('data:application/pdf');
+  return `<button class="btn btn-secondary btn-sm" style="gap:6px" onclick="DpPage.verDocumento('${label}', event.currentTarget)"
+    data-src="${base64}">
+    ${isPdf ? '📄' : '🖼️'} ${label}
+  </button>`;
+}
+
+function _dpCampo(label, value) {
+  return `<div>
+    <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary);margin-bottom:3px">${label}</div>
+    <div style="font-weight:500;font-size:.9rem">${value || '<span style="color:var(--text-secondary)">—</span>'}</div>
+  </div>`;
+}
+
+
+/**
  * app.js — Orchestrator principal do Controle Cozinha Central
  */
 
@@ -5802,6 +7378,7 @@ const App = {
     saida: { module: 'SaidaPage', title: '📤 Saída de Produtos' },
     pedidos: { module: 'PedidosPage', title: '🛒 Pedidos / Romaneio' },
     relatorios: { module: 'RelatoriosPage', title: '📊 Relatórios' },
+    dp: { module: 'DpPage', title: '👥 Departamento Pessoal' },
   },
 
   init() {
@@ -5881,7 +7458,8 @@ const App = {
           ArmazenamentoPage: ArmazenamentoPage,
           SaidaPage:         SaidaPage,
           PedidosPage:       PedidosPage,
-          RelatoriosPage:    RelatoriosPage
+          RelatoriosPage:    RelatoriosPage,
+          DpPage:            DpPage
         };
     }
 
