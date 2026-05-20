@@ -307,14 +307,24 @@ async function init() {
 }
 
 async function carregarMetasLoja(loja) {
+  const _lerLocal = () => {
+    try { return JSON.parse(localStorage.getItem('chef_metas_local') || '{}'); } catch(e) { return {}; }
+  };
   try {
-    const res = await fetch(FIREBASE_METAS_URL);
+    const res  = await fetch(FIREBASE_METAS_URL);
     const data = await res.json();
-    if (data) {
+    if (data && !data.error) {
       const entrada = Object.values(data).find(m => m.loja === loja);
       METAS_LOJA = entrada ? (entrada.itens || {}) : {};
+      if (!Object.keys(METAS_LOJA).length) {
+        const local = _lerLocal();
+        if (local[loja]) METAS_LOJA = local[loja];
+      }
+      return;
     }
-  } catch (e) { METAS_LOJA = {}; }
+  } catch (e) { /* Firebase indisponível */ }
+  const local = _lerLocal();
+  METAS_LOJA = local[loja] || {};
 }
 
 function render() {

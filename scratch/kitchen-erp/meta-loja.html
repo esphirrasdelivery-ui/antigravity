@@ -269,12 +269,65 @@ if (_lojaParam) {
 }
 
 // ── ESTADO ───────────────────────────────────────────────────────────────
-let metaAtual     = {};   // { 'Item': quantidade, ... }
+let metaAtual     = {};
 let lojaAtual     = '';
-let metaId        = null; // Firebase key
-let catalogoAtual = [];   // [ { titulo, icon, itens:[{nome,...}] } ]
+let metaId        = null;
+let catalogoAtual = [];
+let modoOffline   = false;
 
-// ── CARREGAR METAS DO FIREBASE ────────────────────────────────────────────
+const LS_KEY = 'chef_metas_local'; // localStorage key compartilhado com pedido.html
+
+// ── CATÁLOGO PADRÃO (fallback offline) ───────────────────────────────────
+function _catalogoPadrao() {
+  return [
+    { id: 'insumos', nome: 'Recheios', icon: '🥩', itens: [
+        'Pepperoni','Carne Hamburguer','Bacon em cubos','Calabresa triturada',
+        'Carne moída','Carne de Panela','Cebola caramelizada','Filé em Cubos',
+        'Frango Desfiado','Frango defumado','Lombo Assado','Mexicana',
+        'Mini kibe','Mistura Liquida','Mistura para maionese','Mistura Seca 5 kg',
+        'Mistura Seca 15 kg','Molho Gorgonzola','Presunto triturado','Chocolate Branco'
+      ].map(n => ({ nome: n }))
+    },
+    { id: 'cozinha', nome: 'Cozinha', icon: '🧑‍🍳', itens: [
+        'Açucar 5 kg','Alho frito KG','Brigadeiro Caixas','Café 500 G','Canela KG',
+        'Creme de Leite L','Fuba KG','Goiabada Bisnaga','Granulado KG','Kinder ovo',
+        'Kinder Bueno CX','Leite Condensado CX','M&Ms KG','Milho Latinha Fardo',
+        'Nachos Pacote','Nuttela Balde','Óleo Caixa','Paçoca Caixa','Rolo de sacola',
+        'Batata Palha Caixa','Palmito Caixa','Molho de Tomate','Mostarda','Leite Ninho',
+        'MUSSARELA PÇ','Requeijão 1,8 kg','Cheddar 1,2 kg','Parmêsão Ralado Kg',
+        'GORGONZOLA Peça','OREGANO Pacote','Cream Cheese 1 kg','Lombo Canadense',
+        'Sacolina de chupchup','Bombom Ouro Branco','Chocolate branco','Papel Lanche UN',
+        'Doce de Leite Caixa','Alho Poro','Trigo kg','Detergente Un','Cloro Galão',
+        'Bombril Pacote','Esponja fina pacote','Esponja grossa pct','Limpador Forno',
+        'Luva Preta Caixa','Touca Pacote','Ovo de Galinha'
+      ].map(n => ({ nome: n }))
+    },
+    { id: 'frenteloja', nome: 'Frente de Loja', icon: '🏪', itens: [
+        'Caixa 1','Caixa 2','Caixa 4','Caixa 6','Caixa 8','Caixa 12','Tira P','Tira G',
+        'Bandeja P','Bandeja G','Papel Bandeja','Garra 300ml','Garra 1 litro',
+        'Barbecue 3,5 L','Copinho Maionese CX','Papel Higienico',
+        'Coca 1,5 L','Coca 1,5 l Zero','Coca Lata','Coca Lata Zero','Alcool Liquido',
+        'Colherzinha Caixa','Sacola Camiseta 38x48','Canudo','Ketchup sache',
+        'Barbecue sache','Guardanapo','Prato Descartavel','KETCHUP 3,5 L',
+        'Saco Lixo 100L Fardo','Saco Lixo 200 l Fardo','Papel para maos',
+        'Guarana 1,5 L','Agua sem gas','Agua com gas','H2O Limao','H2O Limoneto',
+        'Suco de Uva Dellvale'
+      ].map(n => ({ nome: n }))
+    }
+  ];
+}
+
+// ── PERSISTÊNCIA LOCAL ────────────────────────────────────────────────────
+function _lerMetasLocal() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e) { return {}; }
+}
+function _salvarMetasLocal(loja, itens) {
+  const tudo = _lerMetasLocal();
+  tudo[loja] = itens;
+  localStorage.setItem(LS_KEY, JSON.stringify(tudo));
+}
+
+// ── CARREGAR METAS ────────────────────────────────────────────────────────
 async function carregarMetas() {
   lojaAtual = document.getElementById('selLoja').value;
   if (!lojaAtual) {
@@ -284,9 +337,12 @@ async function carregarMetas() {
   }
 
   document.getElementById('statusBar').style.display = 'flex';
-  document.getElementById('statusText').textContent = 'Carregando dados...';
+  document.getElementById('statusText').textContent = 'Carregando...';
   document.getElementById('metasContainer').style.display = 'none';
+  modoOffline = false;
 
+  // Tenta Firebase
+  let fbOk = false;
   try {
     const [resMetas, resCatalogo, resProdutos] = await Promise.all([
       fetch(`${FIREBASE_URL}/chef_lojas_metas.json`),
@@ -298,47 +354,58 @@ async function carregarMetas() {
     const dataCatalogo = await resCatalogo.json();
     const dataProdutos = await resProdutos.json();
 
-    // Monta catálogo base
-    if (dataCatalogo) {
-      catalogoAtual = Array.isArray(dataCatalogo)
-        ? dataCatalogo
-        : Object.values(dataCatalogo);
+    // Verifica se Firebase retornou dados reais (não erro de permissão)
+    if (dataMetas && dataMetas.error) throw new Error(dataMetas.error);
+
+    if (dataCatalogo && !dataCatalogo.error) {
+      catalogoAtual = Array.isArray(dataCatalogo) ? dataCatalogo : Object.values(dataCatalogo);
+    } else {
+      catalogoAtual = _catalogoPadrao();
     }
 
-    // Deriva Recheios dos produtos com categoria "Recheios"
-    if (dataProdutos) {
+    if (dataProdutos && !dataProdutos.error) {
       const prods = Object.values(dataProdutos).filter(p => p && p.categoria === 'Recheios');
       if (prods.length > 0) {
         prods.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' }));
         const recheioCat = {
           id: 'insumos', nome: 'Recheios', icon: '🥩',
-          itens: prods.map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0), fornecedor: p.fornecedor || '' }))
+          itens: prods.map(p => ({ nome: p.nome, max: parseFloat(p.formularioMaximo || 0) }))
         };
         const idx = catalogoAtual.findIndex(c => c.id === 'insumos');
-        if (idx >= 0) catalogoAtual[idx] = recheioCat;
-        else catalogoAtual.unshift(recheioCat);
+        if (idx >= 0) catalogoAtual[idx] = recheioCat; else catalogoAtual.unshift(recheioCat);
       }
     }
 
-    // Metas da loja
     metaAtual = {};
     metaId    = null;
-    if (dataMetas) {
+    if (dataMetas && !dataMetas.error) {
       const found = Object.entries(dataMetas).find(([, v]) => v.loja === lojaAtual);
-      if (found) {
-        metaId    = found[1].id || found[0];
-        metaAtual = found[1].itens || {};
-      }
+      if (found) { metaId = found[1].id || found[0]; metaAtual = found[1].itens || {}; }
     }
 
-    renderGrid();
-    document.getElementById('statusText').textContent = 'Conectado — Loja ' + lojaAtual;
-    document.getElementById('metasContainer').style.display = 'block';
+    // Se Firebase OK mas metas vazias, busca do localStorage como complemento
+    if (!Object.keys(metaAtual).length) {
+      const local = _lerMetasLocal();
+      if (local[lojaAtual]) metaAtual = local[lojaAtual];
+    }
 
+    fbOk = true;
+    document.getElementById('statusText').textContent = '☁️ Firebase conectado — Loja ' + lojaAtual;
   } catch (e) {
-    document.getElementById('statusText').textContent = 'Erro ao conectar. Verifique a internet.';
-    showToast('Falha na conexão com o banco de dados.', true);
+    fbOk = false;
   }
+
+  if (!fbOk) {
+    // Modo offline: usa catálogo padrão + localStorage
+    modoOffline = true;
+    catalogoAtual = _catalogoPadrao();
+    metaAtual = _lerMetasLocal()[lojaAtual] || {};
+    metaId    = null;
+    document.getElementById('statusText').textContent = '💾 Modo offline — Firebase indisponível — Loja ' + lojaAtual;
+  }
+
+  renderGrid();
+  document.getElementById('metasContainer').style.display = 'block';
 }
 
 // ── RENDERIZAR GRADE DE ITENS ─────────────────────────────────────────────
@@ -404,18 +471,31 @@ async function salvarMetas() {
 
   if (!metaId) metaId = payload.id;
 
+  // Sempre salva localmente primeiro
+  _salvarMetasLocal(lojaAtual, objItens);
+  metaAtual = objItens;
+
+  if (modoOffline) {
+    showToast('💾 Salvo localmente (Firebase indisponível)', false);
+    btn.disabled = false;
+    btn.innerHTML = '💾 Salvar Estoque Máximo';
+    return;
+  }
+
   try {
-    await fetch(`${FIREBASE_URL}/chef_lojas_metas/${metaId}.json`, {
+    const res = await fetch(`${FIREBASE_URL}/chef_lojas_metas/${metaId}.json`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(payload)
     });
+    const data = await res.json();
+    if (data && data.error) throw new Error(data.error);
 
-    metaAtual = objItens;
-    showToast('✅ Estoque máximo salvo com sucesso!', false);
+    showToast('✅ Estoque máximo salvo no Firebase e localmente!', false);
 
   } catch (e) {
-    showToast('❌ Erro ao salvar. Tente novamente.', true);
+    // Firebase falhou mas já salvou no localStorage
+    showToast('💾 Salvo localmente (Firebase indisponível)', false);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '💾 Salvar Estoque Máximo';
