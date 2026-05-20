@@ -225,7 +225,9 @@ async function init() {
 
     if (dataCat) {
       const arr = Array.isArray(dataCat) ? dataCat : Object.values(dataCat);
-      if (arr.length) CATEGORIAS = arr;
+      // Firebase POST cria push ID: Object.values retorna [[...]] — achata se necessário
+      const flat = (arr.length === 1 && Array.isArray(arr[0])) ? arr[0] : arr;
+      if (flat.length) CATEGORIAS = flat;
     }
   } catch (e) { console.warn('Erro ao carregar dados.'); }
 
