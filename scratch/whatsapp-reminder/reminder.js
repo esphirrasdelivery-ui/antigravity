@@ -16,16 +16,20 @@ const FIREBASE_URL  = FIREBASE_BASE + '/chef_pedidos.json';
 const FORM_URL      = 'https://esphirras-erp.pages.dev/pedido.html';
 
 // ── BUSCA RESPONSÁVEIS DO FIREBASE (configurados via meta-loja.html) ──────────
+// Retorna: { GUARAPARI: { setores: { insumos: {nome,telefone}, cozinha: {...} } }, ... }
 async function getResponsaveis() {
   try {
     const res  = await fetch(`${FIREBASE_BASE}/chef_responsaveis_lojas.json`, { signal: AbortSignal.timeout(8000) });
     const data = await res.json();
-    if (data && !data.error && Object.keys(data).length > 0) return data;
+    if (data && !data.error) return data;
   } catch(e) {
     console.error('[Firebase] Erro ao buscar responsáveis:', e.message);
   }
   return {};
 }
+
+// Nomes legíveis por ID de setor
+const SETOR_NOME = { insumos: 'Recheios', cozinha: 'Cozinha', frenteloja: 'Frente de Loja' };
 
 // ── WHATSAPP CLIENT ───────────────────────────────────────────────────────────
 const client = new Client({
@@ -74,43 +78,54 @@ async function pedidoEnviadoHoje(loja) {
   }
 }
 
-// ── ENVIO DO LEMBRETE ─────────────────────────────────────────────────────────
-async function enviarLembrete(loja, cfg) {
-  const hora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
-
-  const enviado = await pedidoEnviadoHoje(loja);
-  if (enviado) {
-    console.log(`[${hora}] [${loja}] ✅ Formulário já enviado. Nenhum lembrete.`);
-    return;
-  }
-
-  const chatId = `${cfg.phone}@c.us`;
-  const msg =
-    `🍕 *Esphirra's Delivery — Lembrete de Inventário*\n\n` +
-    `Loja: *${cfg.nome}*\n\n` +
-    `⚠️ O formulário de inventário desta quarta-feira ainda *não foi enviado*.\n\n` +
-    `Acesse agora:\n${FORM_URL}?loja=${loja}\n\n` +
-    `_Este aviso é enviado a cada hora até o envio do formulário._`;
-
-  try {
-    await client.sendMessage(chatId, msg);
-    console.log(`[${hora}] [${loja}] 📨 Lembrete enviado para ${cfg.phone}`);
-  } catch (e) {
-    console.error(`[${hora}] [${loja}] ❌ Erro ao enviar: ${e.message}`);
-  }
-}
-
 // ── DISPARO MANUAL (para teste imediato) ─────────────────────────────────────
 async function verificarTodasAsLojas() {
   console.log(`\n[${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] Verificando formulários...`);
   const responsaveis = await getResponsaveis();
+
   if (!Object.keys(responsaveis).length) {
     console.log('⚠️  Nenhum responsável configurado. Acesse meta-loja.html para cadastrar.');
     return;
   }
-  for (const [loja, cfg] of Object.entries(responsaveis)) {
-    if (!cfg.telefone) continue;
-    await enviarLembrete(loja, { phone: cfg.telefone, nome: cfg.nome || loja });
+
+  for (const [loja, lojaData] of Object.entries(responsaveis)) {
+    const setores = lojaData.setores || {};
+    if (!Object.keys(setores).length) continue;
+
+    const enviado = await pedidoEnviadoHoje(loja);
+
+    // Agrupa setores por telefone para não spammar quem é responsável por vários setores
+    const porTelefone = {};
+    for (const [setorId, cfg] of Object.entries(setores)) {
+      if (!cfg.telefone) continue;
+      if (!porTelefone[cfg.telefone]) porTelefone[cfg.telefone] = { nome: cfg.nome, setores: [] };
+      porTelefone[cfg.telefone].setores.push(SETOR_NOME[setorId] || setorId);
+    }
+
+    for (const [telefone, info] of Object.entries(porTelefone)) {
+      const hora   = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+      const setNomes = info.setores.join(', ');
+
+      if (enviado) {
+        console.log(`[${hora}] [${loja}/${setNomes}] ✅ Formulário já enviado. Nenhum lembrete.`);
+        continue;
+      }
+
+      const chatId = `${telefone}@c.us`;
+      const msg =
+        `🍕 *Esphirra's Delivery — Lembrete de Inventário*\n\n` +
+        `Loja: *${loja}*  |  Setor: *${setNomes}*\n\n` +
+        `⚠️ O formulário de inventário desta quarta-feira ainda *não foi enviado*.\n\n` +
+        `Acesse agora:\n${FORM_URL}?loja=${loja}\n\n` +
+        `_Este aviso é enviado a cada hora até o envio do formulário._`;
+
+      try {
+        await client.sendMessage(chatId, msg);
+        console.log(`[${hora}] [${loja}/${setNomes}] 📨 Lembrete enviado para ${telefone}`);
+      } catch(e) {
+        console.error(`[${hora}] [${loja}/${setNomes}] ❌ Erro: ${e.message}`);
+      }
+    }
   }
 }
 

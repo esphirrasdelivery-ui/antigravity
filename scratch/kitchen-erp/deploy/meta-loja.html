@@ -208,7 +208,7 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-    /* ── CARD RESPONSÁVEL ── */
+    /* ── CARD RESPONSÁVEIS POR SETOR ── */
     .responsavel-card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -222,7 +222,19 @@
       color: var(--accent);
       letter-spacing: .08em;
       text-transform: uppercase;
-      margin-bottom: 14px;
+      margin-bottom: 16px;
+    }
+    .resp-setor {
+      border-top: 1px solid var(--border);
+      padding: 14px 0 4px;
+      margin-bottom: 4px;
+    }
+    .resp-setor:first-of-type { border-top: none; padding-top: 0; }
+    .resp-setor-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
     }
     .resp-row {
       display: flex;
@@ -232,7 +244,7 @@
     .resp-field { flex: 1; }
     .resp-field label {
       display: block;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--muted);
       font-weight: 500;
       margin-bottom: 5px;
@@ -243,9 +255,9 @@
       border: 1.5px solid var(--border);
       border-radius: 8px;
       color: var(--text);
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-family: 'Inter', sans-serif;
-      padding: 10px 14px;
+      padding: 9px 12px;
     }
     .resp-field input:focus { outline: none; border-color: var(--accent); }
     .btn-salvar-resp {
@@ -259,6 +271,7 @@
       font-weight: 700;
       font-family: 'Inter', sans-serif;
       cursor: pointer;
+      margin-top: 8px;
       transition: background .15s, color .15s;
     }
     .btn-salvar-resp:hover { background: var(--accent); color: #000; }
@@ -295,24 +308,7 @@
       <span id="statusText">Conectado ao banco de dados</span>
     </div>
 
-    <div id="responsavelCard" class="responsavel-card" style="display:none">
-      <div class="card-title">📱 Responsável pelo Formulário de Inventário</div>
-      <div class="resp-row">
-        <div class="resp-field">
-          <label>Nome</label>
-          <input type="text" id="respNome" placeholder="Nome do responsável" />
-        </div>
-      </div>
-      <div class="resp-row">
-        <div class="resp-field">
-          <label>WhatsApp (DDD + número, sem espaços)</label>
-          <input type="tel" id="respTelefone" placeholder="27999066400" />
-        </div>
-      </div>
-      <button class="btn-salvar-resp" id="btnSalvarResp" onclick="salvarResponsavel()">
-        📱 Salvar Responsável
-      </button>
-    </div>
+    <div id="responsavelWrapper"></div>
 
     <div id="metasContainer">
       <div id="metasGrid"></div>
@@ -408,14 +404,14 @@ async function carregarMetas() {
   if (!lojaAtual) {
     document.getElementById('metasContainer').style.display = 'none';
     document.getElementById('statusBar').style.display = 'none';
-    document.getElementById('responsavelCard').style.display = 'none';
+    document.getElementById('responsavelWrapper').innerHTML = '';
     return;
   }
 
   document.getElementById('statusBar').style.display = 'flex';
   document.getElementById('statusText').textContent = 'Carregando...';
   document.getElementById('metasContainer').style.display = 'none';
-  document.getElementById('responsavelCard').style.display = 'none';
+  document.getElementById('responsavelWrapper').innerHTML = '';
   modoOffline = false;
 
   // Tenta Firebase
@@ -483,55 +479,93 @@ async function carregarMetas() {
 
   renderGrid();
   document.getElementById('metasContainer').style.display = 'block';
-  carregarResponsavel(lojaAtual);
+  renderResponsavelCard();
+  carregarResponsaveis(lojaAtual);
 }
 
-// ── RESPONSÁVEL PELO FORMULÁRIO ───────────────────────────────────────────
-async function carregarResponsavel(loja) {
+// ── RESPONSÁVEIS POR SETOR ────────────────────────────────────────────────
+function renderResponsavelCard() {
+  const wrapper = document.getElementById('responsavelWrapper');
+  if (!catalogoAtual.length) { wrapper.innerHTML = ''; return; }
+
+  let setores = '';
+  catalogoAtual.forEach(cat => {
+    const id     = cat.id;
+    const titulo = (cat.icon ? cat.icon + ' ' : '') + (cat.nome || cat.titulo || id);
+    setores += `
+      <div class="resp-setor">
+        <div class="resp-setor-title">${titulo}</div>
+        <div class="resp-row">
+          <div class="resp-field">
+            <label>Nome</label>
+            <input type="text" id="resp_nome_${id}" placeholder="Nome do responsável" />
+          </div>
+          <div class="resp-field">
+            <label>WhatsApp (DDD + número)</label>
+            <input type="tel" id="resp_tel_${id}" placeholder="27999999999" />
+          </div>
+        </div>
+      </div>`;
+  });
+
+  wrapper.innerHTML = `
+    <div class="responsavel-card" id="responsavelCard">
+      <div class="card-title">📱 Responsáveis por Setor</div>
+      ${setores}
+      <button class="btn-salvar-resp" id="btnSalvarResp" onclick="salvarResponsaveis()">
+        📱 Salvar Responsáveis
+      </button>
+    </div>`;
+}
+
+async function carregarResponsaveis(loja) {
+  let dados = {};
   try {
     const res  = await fetch(`${FIREBASE_URL}/chef_responsaveis_lojas/${loja}.json`);
     const data = await res.json();
-    if (data && !data.error) {
-      document.getElementById('respNome').value     = data.nome     || '';
-      document.getElementById('respTelefone').value = data.telefone || '';
-    } else {
-      document.getElementById('respNome').value     = '';
-      document.getElementById('respTelefone').value = '';
-    }
-  } catch(e) {
-    document.getElementById('respNome').value     = '';
-    document.getElementById('respTelefone').value = '';
-  }
-  document.getElementById('responsavelCard').style.display = 'block';
+    if (data && !data.error && data.setores) dados = data.setores;
+  } catch(e) {}
+
+  catalogoAtual.forEach(cat => {
+    const id  = cat.id;
+    const cfg = dados[id] || {};
+    const elNome = document.getElementById(`resp_nome_${id}`);
+    const elTel  = document.getElementById(`resp_tel_${id}`);
+    if (elNome) elNome.value = cfg.nome     || '';
+    if (elTel)  elTel.value  = cfg.telefone || '';
+  });
 }
 
-async function salvarResponsavel() {
-  const nome     = document.getElementById('respNome').value.trim();
-  const foneRaw  = document.getElementById('respTelefone').value.replace(/\D/g, '');
-
-  if (!foneRaw) { showToast('❌ Informe o telefone do responsável', true); return; }
-
-  // Garante prefixo 55 (Brasil)
-  const telefone = foneRaw.startsWith('55') ? foneRaw : '55' + foneRaw;
-
+async function salvarResponsaveis() {
   const btn = document.getElementById('btnSalvarResp');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Salvando...';
+
+  const setores = {};
+  catalogoAtual.forEach(cat => {
+    const id      = cat.id;
+    const nome    = (document.getElementById(`resp_nome_${id}`)?.value || '').trim();
+    const foneRaw = (document.getElementById(`resp_tel_${id}`)?.value  || '').replace(/\D/g, '');
+    if (nome || foneRaw) {
+      const telefone = foneRaw ? (foneRaw.startsWith('55') ? foneRaw : '55' + foneRaw) : '';
+      setores[id] = { nome, telefone };
+    }
+  });
 
   try {
     const res = await fetch(`${FIREBASE_URL}/chef_responsaveis_lojas/${lojaAtual}.json`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ nome, telefone, atualizadoEm: new Date().toISOString() })
+      body:    JSON.stringify({ setores, atualizadoEm: new Date().toISOString() })
     });
     const data = await res.json();
     if (data && data.error) throw new Error(data.error);
-    showToast('✅ Responsável salvo!', false);
+    showToast('✅ Responsáveis salvos!', false);
   } catch(e) {
-    showToast('❌ Erro ao salvar responsável', true);
+    showToast('❌ Erro ao salvar responsáveis', true);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '📱 Salvar Responsável';
+    btn.innerHTML = '📱 Salvar Responsáveis';
   }
 }
 
