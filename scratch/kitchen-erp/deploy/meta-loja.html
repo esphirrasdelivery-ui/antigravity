@@ -207,6 +207,62 @@
     }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── CARD RESPONSÁVEL ── */
+    .responsavel-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .responsavel-card .card-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .resp-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .resp-field { flex: 1; }
+    .resp-field label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    .resp-field input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-family: 'Inter', sans-serif;
+      padding: 10px 14px;
+    }
+    .resp-field input:focus { outline: none; border-color: var(--accent); }
+    .btn-salvar-resp {
+      width: 100%;
+      background: transparent;
+      border: 1.5px solid var(--accent);
+      color: var(--accent);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .btn-salvar-resp:hover { background: var(--accent); color: #000; }
+    .btn-salvar-resp:disabled { opacity: .5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -237,6 +293,25 @@
     <div id="statusBar" class="status-bar" style="display:none">
       <div class="dot"></div>
       <span id="statusText">Conectado ao banco de dados</span>
+    </div>
+
+    <div id="responsavelCard" class="responsavel-card" style="display:none">
+      <div class="card-title">📱 Responsável pelo Formulário de Inventário</div>
+      <div class="resp-row">
+        <div class="resp-field">
+          <label>Nome</label>
+          <input type="text" id="respNome" placeholder="Nome do responsável" />
+        </div>
+      </div>
+      <div class="resp-row">
+        <div class="resp-field">
+          <label>WhatsApp (DDD + número, sem espaços)</label>
+          <input type="tel" id="respTelefone" placeholder="27999066400" />
+        </div>
+      </div>
+      <button class="btn-salvar-resp" id="btnSalvarResp" onclick="salvarResponsavel()">
+        📱 Salvar Responsável
+      </button>
     </div>
 
     <div id="metasContainer">
@@ -333,12 +408,14 @@ async function carregarMetas() {
   if (!lojaAtual) {
     document.getElementById('metasContainer').style.display = 'none';
     document.getElementById('statusBar').style.display = 'none';
+    document.getElementById('responsavelCard').style.display = 'none';
     return;
   }
 
   document.getElementById('statusBar').style.display = 'flex';
   document.getElementById('statusText').textContent = 'Carregando...';
   document.getElementById('metasContainer').style.display = 'none';
+  document.getElementById('responsavelCard').style.display = 'none';
   modoOffline = false;
 
   // Tenta Firebase
@@ -406,6 +483,56 @@ async function carregarMetas() {
 
   renderGrid();
   document.getElementById('metasContainer').style.display = 'block';
+  carregarResponsavel(lojaAtual);
+}
+
+// ── RESPONSÁVEL PELO FORMULÁRIO ───────────────────────────────────────────
+async function carregarResponsavel(loja) {
+  try {
+    const res  = await fetch(`${FIREBASE_URL}/chef_responsaveis_lojas/${loja}.json`);
+    const data = await res.json();
+    if (data && !data.error) {
+      document.getElementById('respNome').value     = data.nome     || '';
+      document.getElementById('respTelefone').value = data.telefone || '';
+    } else {
+      document.getElementById('respNome').value     = '';
+      document.getElementById('respTelefone').value = '';
+    }
+  } catch(e) {
+    document.getElementById('respNome').value     = '';
+    document.getElementById('respTelefone').value = '';
+  }
+  document.getElementById('responsavelCard').style.display = 'block';
+}
+
+async function salvarResponsavel() {
+  const nome     = document.getElementById('respNome').value.trim();
+  const foneRaw  = document.getElementById('respTelefone').value.replace(/\D/g, '');
+
+  if (!foneRaw) { showToast('❌ Informe o telefone do responsável', true); return; }
+
+  // Garante prefixo 55 (Brasil)
+  const telefone = foneRaw.startsWith('55') ? foneRaw : '55' + foneRaw;
+
+  const btn = document.getElementById('btnSalvarResp');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Salvando...';
+
+  try {
+    const res = await fetch(`${FIREBASE_URL}/chef_responsaveis_lojas/${lojaAtual}.json`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ nome, telefone, atualizadoEm: new Date().toISOString() })
+    });
+    const data = await res.json();
+    if (data && data.error) throw new Error(data.error);
+    showToast('✅ Responsável salvo!', false);
+  } catch(e) {
+    showToast('❌ Erro ao salvar responsável', true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '📱 Salvar Responsável';
+  }
 }
 
 // ── RENDERIZAR GRADE DE ITENS ─────────────────────────────────────────────

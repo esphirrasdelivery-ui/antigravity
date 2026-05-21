@@ -11,15 +11,21 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const cron   = require('node-cron');
 
-// ── CONFIGURAÇÃO DAS LOJAS ────────────────────────────────────────────────────
-// phone: código do país (55) + DDD + número, sem espaços ou símbolos
-const LOJAS = {
-  GUARAPARI: { phone: '5527999066400', nome: 'Guarapari' },
-  SERRA:     { phone: '5527999066400', nome: 'Serra'     },
-};
+const FIREBASE_BASE = 'https://controle-cozinha-central-default-rtdb.firebaseio.com';
+const FIREBASE_URL  = FIREBASE_BASE + '/chef_pedidos.json';
+const FORM_URL      = 'https://esphirras-erp.pages.dev/pedido.html';
 
-const FIREBASE_URL = 'https://controle-cozinha-central-default-rtdb.firebaseio.com/chef_pedidos.json';
-const FORM_URL     = 'https://esphirras-erp.pages.dev/pedido.html';
+// ── BUSCA RESPONSÁVEIS DO FIREBASE (configurados via meta-loja.html) ──────────
+async function getResponsaveis() {
+  try {
+    const res  = await fetch(`${FIREBASE_BASE}/chef_responsaveis_lojas.json`, { signal: AbortSignal.timeout(8000) });
+    const data = await res.json();
+    if (data && !data.error && Object.keys(data).length > 0) return data;
+  } catch(e) {
+    console.error('[Firebase] Erro ao buscar responsáveis:', e.message);
+  }
+  return {};
+}
 
 // ── WHATSAPP CLIENT ───────────────────────────────────────────────────────────
 const client = new Client({
@@ -97,8 +103,14 @@ async function enviarLembrete(loja, cfg) {
 // ── DISPARO MANUAL (para teste imediato) ─────────────────────────────────────
 async function verificarTodasAsLojas() {
   console.log(`\n[${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}] Verificando formulários...`);
-  for (const [loja, cfg] of Object.entries(LOJAS)) {
-    await enviarLembrete(loja, cfg);
+  const responsaveis = await getResponsaveis();
+  if (!Object.keys(responsaveis).length) {
+    console.log('⚠️  Nenhum responsável configurado. Acesse meta-loja.html para cadastrar.');
+    return;
+  }
+  for (const [loja, cfg] of Object.entries(responsaveis)) {
+    if (!cfg.telefone) continue;
+    await enviarLembrete(loja, { phone: cfg.telefone, nome: cfg.nome || loja });
   }
 }
 
@@ -111,7 +123,7 @@ cron.schedule('0 16-23 * * 3', verificarTodasAsLojas, {
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 console.log('🚀 Esphirra\'s — Sistema de Lembretes de Inventário');
-console.log('   Lojas monitoradas:', Object.keys(LOJAS).join(', '));
+console.log('   Responsáveis: configurados via meta-loja.html (Firebase)');
 console.log('   Cronograma: toda quarta-feira, 16h–23h\n');
 
 // Para testar manualmente: node reminder.js --test
