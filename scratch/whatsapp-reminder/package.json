@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-reminder",
+  "version": "1.0.0",
+  "description": "Lembretes automáticos de formulário de inventário Esphirra's",
+  "main": "reminder.js",
+  "scripts": {
+    "start": "node reminder.js"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}
