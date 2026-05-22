@@ -1,6 +1,9 @@
 @echo off
-title Esphirra's — Lembretes de Inventário
+title Esphirra's — WhatsApp Reminder Server
 cd /d "%~dp0"
-echo Iniciando sistema de lembretes...
-node reminder.js
+echo Iniciando servidor WhatsApp...
+echo Acesse o ERP para escanear o QR code:
+echo https://esphirras-erp.pages.dev/whatsapp.html
+echo.
+node server.js
 pause

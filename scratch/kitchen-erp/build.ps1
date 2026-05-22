@@ -37,6 +37,7 @@ Copy-Item "$base\cheferp.html" "$deployDir\index.html" -Force
 Copy-Item "$base\pedido.html"  "$deployDir\pedido.html"  -Force
 Copy-Item "$base\meta-loja.html" "$deployDir\meta-loja.html" -Force
 Copy-Item "$base\funcionario.html" "$deployDir\funcionario.html" -Force
+Copy-Item "$base\whatsapp.html" "$deployDir\whatsapp.html" -Force
 Set-Content -Path "$deployDir\_headers" -Value "/*`n  Content-Type: text/html; charset=utf-8" -Encoding UTF8
 
 $zipPath = "$base\netlify_deploy.zip"

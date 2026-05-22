@@ -2,7 +2,7 @@
 # Execute uma vez com: powershell -ExecutionPolicy Bypass -File instalar-tarefa-windows.ps1
 
 $pasta  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script = Join-Path $pasta "reminder.js"
+$script = Join-Path $pasta "server.js"
 $node   = (Get-Command node -ErrorAction Stop).Source
 
 $action  = New-ScheduledTaskAction -Execute $node -Argument "`"$script`"" -WorkingDirectory $pasta

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp Lembretes — Esphirra's</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --bg:      #0f172a;
+      --card:    #1e293b;
+      --border:  #334155;
+      --accent:  #f59e0b;
+      --accent2: #fbbf24;
+      --text:    #f1f5f9;
+      --muted:   #94a3b8;
+      --success: #10b981;
+      --danger:  #ef4444;
+      --warn:    #f59e0b;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 2px solid #25d366;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-logo {
+      width: 44px; height: 44px;
+      background: #25d366;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .header-title h1 { font-size: 1.1rem; font-weight: 700; }
+    .header-title p  { font-size: 0.78rem; color: var(--muted); }
+
+    .container { max-width: 520px; margin: 0 auto; padding: 28px 16px; }
+
+    /* ── STATUS CARD ── */
+    .status-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .status-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .status-label {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .status-label.connected { color: var(--success); }
+    .status-label.qr        { color: var(--warn); }
+    .status-label.loading   { color: var(--muted); }
+    .status-label.disconnected { color: var(--danger); }
+
+    .status-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 20px; }
+
+    /* ── QR CODE ── */
+    #qrWrap { display: none; margin: 0 auto 20px; }
+    #qrWrap img {
+      display: block;
+      margin: 0 auto;
+      border-radius: 12px;
+      border: 3px solid #25d366;
+      max-width: 260px;
+      width: 100%;
+    }
+    .qr-hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    /* ── BOTÕES ── */
+    .btn {
+      display: inline-block;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      border: none;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover { opacity: .85; transform: scale(1.02); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .btn-green  { background: #25d366; color: #000; }
+    .btn-red    { background: var(--danger); color: #fff; }
+    .btn-yellow { background: var(--accent); color: #000; }
+    .btn-ghost  {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--muted);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── INFO CARD ── */
+    .info-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .info-card h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .info-row span:first-child { flex-shrink: 0; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--success);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-weight: 600;
+      font-size: .88rem;
+      transition: transform .3s;
+      z-index: 99;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.error { background: var(--danger); }
+
+    /* ── SERVER OFFLINE ── */
+    #serverOffline {
+      background: rgba(239,68,68,.08);
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      font-size: 0.84rem;
+      color: #fca5a5;
+      display: none;
+    }
+    #serverOffline code {
+      background: rgba(0,0,0,.3);
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      display: block;
+      margin-top: 8px;
+    }
+
+    .spinner-dot {
+      display: inline-block;
+      animation: blink 1.2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">💬</div>
+  <div class="header-title">
+    <h1>Conexão WhatsApp</h1>
+    <p>Esphirra's Delivery — Lembretes de Inventário</p>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="serverOffline">
+    ⚠️ Servidor local não encontrado. Inicie o servidor no PC antes de usar esta página.
+    <code>cd whatsapp-reminder &amp;&amp; node server.js</code>
+  </div>
+
+  <div class="status-card">
+    <div class="status-icon" id="statusIcon">⏳</div>
+    <div class="status-label loading" id="statusLabel">Conectando ao servidor<span class="spinner-dot">...</span></div>
+    <div class="status-sub" id="statusSub">Aguarde</div>
+
+    <div id="qrWrap">
+      <img id="qrImg" src="" alt="QR Code WhatsApp" />
+      <div class="qr-hint">
+        Abra o WhatsApp no celular →<br>
+        <strong>Dispositivos conectados → Conectar dispositivo</strong><br>
+        e escaneie o código acima.
+      </div>
+    </div>
+
+    <div class="btn-row" id="actionBtns"></div>
+  </div>
+
+  <div class="info-card">
+    <h3>Como funciona</h3>
+    <div class="info-row"><span>📅</span><span>Todo quarta-feira, das 16h às 23h, o sistema verifica se cada loja enviou o formulário de inventário.</span></div>
+    <div class="info-row"><span>📱</span><span>Se não enviou, uma mensagem é enviada pelo WhatsApp conectado aqui para o responsável configurado em <strong>Configurar Estoque Máximo</strong>.</span></div>
+    <div class="info-row"><span>🔁</span><span>O lembrete é repetido a cada hora até o formulário ser enviado.</span></div>
+    <div class="info-row"><span>💡</span><span>O servidor local precisa estar rodando no PC para os lembretes funcionarem.</span></div>
+  </div>
+
+  <div class="info-card">
+    <h3>Servidor local</h3>
+    <div class="info-row"><span>▶</span><span>Para iniciar: abra um terminal e execute<br><code style="background:rgba(0,0,0,.3);padding:3px 8px;border-radius:4px;font-family:monospace;font-size:.8rem;display:inline-block;margin-top:4px">node server.js</code><br>na pasta <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:.8rem">whatsapp-reminder</code></span></div>
+    <div class="info-row"><span>⚙️</span><span>Para iniciar automaticamente com o PC, rode <code style="background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:.8rem">instalar-tarefa-windows.ps1</code> uma vez.</span></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = 'http://localhost:3001/api';
+let pollInterval = null;
+let lastStatus   = null;
+
+async function fetchStatus() {
+  try {
+    const res  = await fetch(`${API}/status`, { signal: AbortSignal.timeout(3000) });
+    const data = await res.json();
+    document.getElementById('serverOffline').style.display = 'none';
+    renderStatus(data.status, data.qr);
+  } catch(e) {
+    document.getElementById('serverOffline').style.display = 'block';
+    renderStatus('offline', null);
+  }
+}
+
+function renderStatus(status, qr) {
+  if (status === lastStatus && status !== 'qr') return;
+  lastStatus = status;
+
+  const icon    = document.getElementById('statusIcon');
+  const label   = document.getElementById('statusLabel');
+  const sub     = document.getElementById('statusSub');
+  const qrWrap  = document.getElementById('qrWrap');
+  const qrImg   = document.getElementById('qrImg');
+  const btns    = document.getElementById('actionBtns');
+
+  label.className = 'status-label ' + status;
+
+  if (status === 'connected') {
+    icon.textContent  = '✅';
+    label.innerHTML   = 'WhatsApp Conectado';
+    sub.textContent   = 'Lembretes ativos — quartas-feiras 16h–23h';
+    qrWrap.style.display = 'none';
+    btns.innerHTML =
+      `<button class="btn btn-yellow" onclick="testarAgora()">🧪 Testar Agora</button>` +
+      `<button class="btn btn-ghost" onclick="desconectar()">Desconectar</button>`;
+
+  } else if (status === 'qr') {
+    icon.textContent  = '📱';
+    label.innerHTML   = 'Escaneie o QR Code';
+    sub.textContent   = 'O QR code expira em ~20s e se atualiza automaticamente.';
+    qrWrap.style.display = 'block';
+    if (qr) qrImg.src = qr;
+    btns.innerHTML = '';
+
+  } else if (status === 'loading') {
+    icon.textContent  = '⏳';
+    label.innerHTML   = 'Inicializando<span class="spinner-dot">...</span>';
+    sub.textContent   = 'Aguarde alguns segundos.';
+    qrWrap.style.display = 'none';
+    btns.innerHTML = '';
+
+  } else if (status === 'disconnected') {
+    icon.textContent  = '🔴';
+    label.innerHTML   = 'Desconectado';
+    sub.textContent   = 'O servidor vai reconectar automaticamente em instantes.';
+    qrWrap.style.display = 'none';
+    btns.innerHTML = '';
+
+  } else {
+    // offline — servidor não encontrado
+    icon.textContent  = '⚡';
+    label.innerHTML   = 'Servidor offline';
+    sub.textContent   = 'Inicie o servidor local para continuar.';
+    qrWrap.style.display = 'none';
+    btns.innerHTML = '';
+  }
+}
+
+async function desconectar() {
+  if (!confirm('Desconectar o WhatsApp? Será necessário escanear o QR code novamente.')) return;
+  try {
+    await fetch(`${API}/disconnect`, { method: 'POST' });
+    showToast('Desconectado.', false);
+    lastStatus = null;
+  } catch(e) {
+    showToast('Erro ao desconectar.', true);
+  }
+}
+
+async function testarAgora() {
+  try {
+    const res  = await fetch(`${API}/test`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { showToast('❌ ' + data.error, true); return; }
+    showToast('✅ Verificação disparada! Confira o terminal.', false);
+  } catch(e) {
+    showToast('❌ Servidor não encontrado.', true);
+  }
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'error show' : 'show';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.className = isError ? 'error' : ''; }, 3500);
+}
+
+// Polling a cada 3 segundos
+fetchStatus();
+pollInterval = setInterval(fetchStatus, 3000);
+</script>
+</body>
+</html>
