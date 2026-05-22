@@ -96,6 +96,31 @@ app.post('/api/test', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Verifica se os números configurados têm WhatsApp
+app.get('/api/check-phones', async (req, res) => {
+  if (waStatus !== 'connected') {
+    return res.status(400).json({ error: 'WhatsApp não conectado.' });
+  }
+  const responsaveis = await getResponsaveis();
+  const resultado = {};
+
+  for (const [loja, lojaData] of Object.entries(responsaveis)) {
+    resultado[loja] = {};
+    const setores = lojaData.setores || {};
+    // Coleta telefones únicos da loja
+    const fones = [...new Set(Object.values(setores).map(s => s.telefone).filter(Boolean))];
+    for (const tel of fones) {
+      try {
+        const id = await client.getNumberId(tel);
+        resultado[loja][tel] = id ? { ok: true, id: id._serialized } : { ok: false };
+      } catch(e) {
+        resultado[loja][tel] = { ok: false, erro: e.message };
+      }
+    }
+  }
+  res.json(resultado);
+});
+
 // ── FIREBASE: VERIFICAÇÃO DE PEDIDOS ─────────────────────────────────────────
 async function pedidoEnviadoHoje(loja) {
   const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
